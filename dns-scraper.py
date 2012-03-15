@@ -25,9 +25,71 @@ import logging
 import struct
 
 from binascii import hexlify
-from unbound import ub_ctx, ub_version, RR_CLASS_IN, RR_TYPE_DNSKEY
+from unbound import ub_ctx, ub_version, ub_strerror, RR_CLASS_IN, RR_TYPE_DNSKEY, RR_TYPE_A, \
+	RR_TYPE_AAAA, RR_TYPE_SSHFP, RR_TYPE_MX, RR_TYPE_DS, RR_TYPE_NSEC, \
+	RR_TYPE_NSEC3, RR_TYPE_NSEC3PARAMS, RR_TYPE_RRSIG, RR_TYPE_SOA, \
+	RR_TYPE_NS, RR_TYPE_TXT, RCODE_SERVFAIL
 
-class RSAKey:
+RR_TYPE_SPF = 99
+
+class UnboundError(RuntimeError):
+	"""Exception for reporting internal unbound errors"""
+	def __init__(self, reason):
+		super(RuntimeError, self).__init__(reason)
+
+class RRType_Parser(object):
+	"""Abstract class for parsing and storing of all RR types. Does up to 3
+	attempts on SERVFAIL"""
+	
+	rrType = 0 #undefined RR type
+	rrClass = RR_CLASS_IN
+	attempts = 3
+	
+	def __init__(self, domain, resolver):
+		"""Create instance.
+		@param domain: domain to scan for
+		@param resolver: ub_ctx to use for resolving
+		"""
+		self.domain = domain
+		self.resolver = resolver
+	
+	def fetch(self):
+		"""Generic fetching of record that are not of special form like
+		SRV and TLSA.
+		
+		@returns: result part from (status, result) tupe of ub_ctx.resolve()
+		@throws: UnboundError if unbound reports error
+		"""
+		for i in range(self.attempts):
+			(status, result) = self.resolver.resolve(self.domain, self.rrType, self.rrClass)
+			
+			if status != 0:
+				raise UnboundError("Resolving %s for %s: %s" % \
+					(self.__class__.__name__, self.domain, ub_strerror(status)))
+			
+			if result.rcode != RCODE_SERVFAIL:
+				return result
+		
+	def fetchAndStore(self, conn):
+		"""Scan records for the domain and store results in DB.
+		@param conn: database connection from DBPool.connection()
+		"""
+		raise NotImplementedError
+	
+
+class A_Parser(RRType_Parser):
+	
+	rrType = RR_TYPE_A
+	
+	def fetchAndStore(self, conn):
+		try:
+			r = RRType_Parser.fetch(self, conn)
+		except UnboundError:
+			logging.exception("Fetching of %s failed" % self.domain)
+		
+		print r
+	
+class RSAKey(object):
 
 	def __init__(self, exponent, modulus, digest_algo, key_purpose):
 		self.exponent = exponent
