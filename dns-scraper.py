@@ -25,6 +25,9 @@ import logging
 import struct
 
 from binascii import hexlify
+from ConfigParser import SafeConfigParser
+
+from db import DbPool
 from unbound import ub_ctx, ub_version, ub_strerror, RR_CLASS_IN, RR_TYPE_DNSKEY, RR_TYPE_A, \
 	RR_TYPE_AAAA, RR_TYPE_SSHFP, RR_TYPE_MX, RR_TYPE_DS, RR_TYPE_NSEC, \
 	RR_TYPE_NSEC3, RR_TYPE_NSEC3PARAMS, RR_TYPE_RRSIG, RR_TYPE_SOA, \
@@ -57,7 +60,7 @@ class RRType_Parser(object):
 		"""Generic fetching of record that are not of special form like
 		SRV and TLSA.
 		
-		@returns: result part from (status, result) tupe of ub_ctx.resolve()
+		@returns: result part from (status, result) tupe of ub_ctx.resolve() or None on permanent SERVFAIL
 		@throws: UnboundError if unbound reports error
 		"""
 		for i in range(self.attempts):
@@ -68,7 +71,13 @@ class RRType_Parser(object):
 					(self.__class__.__name__, self.domain, ub_strerror(status)))
 			
 			if result.rcode != RCODE_SERVFAIL:
+				logging.debug("Domain %s type %s: havedata %s, rcode %s", \
+					self.domain, self.__class__.__name__, result.havedata, result.rcode_str)
 				return result
+			
+			logging.warn("Permanent SERVFAIL: domain %s type %s", \
+				self.domain, self.__class__.__name__)
+			return None
 		
 	def fetchAndStore(self, conn):
 		"""Scan records for the domain and store results in DB.
@@ -81,13 +90,17 @@ class A_Parser(RRType_Parser):
 	
 	rrType = RR_TYPE_A
 	
+	def __init__(self, domain, resolver):
+		RRType_Parser.__init__(self, domain, resolver)
+	
 	def fetchAndStore(self, conn):
 		try:
-			r = RRType_Parser.fetch(self, conn)
+			r = RRType_Parser.fetch(self)
 		except UnboundError:
 			logging.exception("Fetching of %s failed" % self.domain)
 		
-		print r
+		if r.havedata:
+			print "%s: %s" % (self.domain, r.data.as_address_list())
 	
 class RSAKey(object):
 
@@ -111,23 +124,21 @@ class DnskeyAlgo:
 	
 	algo_ids = algo_map.keys()
 
+class DnskeyParser(RRType_Parser):
 
-class DnskeyScanThread(threading.Thread):
-
-	def __init__(self, task_queue, ta_file): 
-		self.task_queue = task_queue
-		threading.Thread.__init__(self)
+	rrType = RR_TYPE_DNSKEY
+	
+	def __init__(self, domain, resolver):
+		RRType_Parser.__init__(self, domain, resolver)
+	
+	def fetchAndStore(self, conn):
+		try:
+			result = RRType_Parser.fetch(self)
+		except UnboundError:
+			logging.exception("Fetching of %s failed" % self.domain)
 		
-		self.resolver = ub_ctx()
-		#self.resolver.resolvconf("/etc/resolv.conf")
-		#self.resolver.set_fwd("127.0.0.1")
-		self.resolver.add_ta_file(ta_file) #read public keys for DNSSEC verification
-
-	def get_rsa_keys(self, domain):
-		status, result = self.resolver.resolve(domain, RR_TYPE_DNSKEY, RR_CLASS_IN)
 		keys = []
-		
-		if status == 0 and result.havedata:
+		if result.havedata:
 			for key in result.data.data:
 				flags = struct.unpack("!H", key[:2])[0]
 				proto = ord(key[2])
@@ -159,46 +170,70 @@ class DnskeyScanThread(threading.Thread):
 					key_purpose = "?SK_%04x" % flags #for revoked bit and other reserved bits
 
 				keys.append(RSAKey(exponent, modulus, digest_algo, key_purpose))
-		else:
-			logging.debug("No key for %s - status: %s, rcode: %s, rcode_str: %s, havedata: %s", domain, status, result.rcode, result.rcode_str, result.havedata)
+			
+			print self.domain, keys
+	
 
-		return keys
+class DnsScanThread(threading.Thread):
+
+	def __init__(self, task_queue, ta_file, rr_scanners, db):
+		"""Create scanning thread.
+		
+		@param task_queue: Queue.Queue containing domains to scan as strings
+		@param ta_file: trust anchor file for libunbound
+		@param rr_scanners: list of subclasses of RRType_Parser to use for scan
+		@param db: database connection pool, instance of db.DbPool
+		"""
+		self.task_queue = task_queue
+		self.rr_scanners = rr_scanners
+		self.db = db
+		
+		threading.Thread.__init__(self)
+		
+		self.resolver = ub_ctx()
+		#self.resolver.resolvconf("/etc/resolv.conf")
+		#self.resolver.set_fwd("127.0.0.1")
+		self.resolver.add_ta_file(ta_file) #read public keys for DNSSEC verification
 
 	def run(self):
+		conn = self.db.connection()
 		while True:
 			domain = self.task_queue.get()
 			
-			try:
-				keys = self.get_rsa_keys(domain)
-				if keys:
-					for key in keys:
-						logging.info("DNSKEY %s %s:%s %s %s", \
-						  domain, key.key_purpose, key.digest_algo, \
-						  hexlify(key.exponent), hexlify(key.modulus)
-						  )
-			except Exception:
-				logging.exception("Failed to fetch keys for %s", domain)
+			for parserClass in self.rr_scanners:
+				try:
+					parser = parserClass(domain, self.resolver)
+					parser.fetchAndStore(conn)
+				except Exception:
+					logging.exception("Failed to scan domain %s with %s",
+						domain, parserClass.__class__.__name__)
 				
 			self.task_queue.task_done()
 
 
-if len(sys.argv) != 4: 
-	print >> sys.stderr, "ERROR: usage: <domain_file> <ta_file> <thread_count>" 
+if len(sys.argv) != 5: 
+	print >> sys.stderr, "ERROR: usage: <domain_file> <ta_file> <thread_count> <db_config>" 
 	sys.exit(1)
 	
 domain_file = file(sys.argv[1])
 ta_file = sys.argv[2]
 thread_count = int(sys.argv[3])
+db_config = SafeConfigParser()
+db_config.read(sys.argv[4])
 
-logging.basicConfig(filename="fetch_dnskey.log", level=logging.DEBUG,
+db = DbPool(db_config)
+
+logging.basicConfig(filename="dns-scraper.log", level=logging.DEBUG,
 	format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
 
 logging.info("Unbound version: %s", ub_version())
 
 task_queue = Queue.Queue(5000)
 
+parsers = [A_Parser, DnskeyParser]
+
 for i in range(thread_count):
-	t = DnskeyScanThread(task_queue, ta_file)
+	t = DnsScanThread(task_queue, ta_file, parsers, db)
 	t.setDaemon(True)
 	t.start()
 

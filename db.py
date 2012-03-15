@@ -39,12 +39,12 @@ class DbPool(object):
 		@param config: instance of RawConfigParser or subclass."""
 
 		self.host = config.get("database", "host")
-		self.port = config.get("database", "port")
+		self.port = config.getint("database", "port")
 		self.user = config.get("database", "user")
 		self.password = config.get("database", "password")
 		self.db_name = config.get("database", "dbname")
-		self.min_connections = config.get("database", "min_connections")
-		self.max_connections = config.get("database", "max_connections")
+		self.min_connections = config.getint("database", "min_connections")
+		self.max_connections = config.getint("database", "max_connections")
 
 		self.pool = PersistentConnectionPool(
 			minconn = self.min_connections,
