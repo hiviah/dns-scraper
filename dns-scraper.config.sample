@@ -9,7 +9,7 @@ user = perspectives
 password = db_password
 dbname = dnsscraper
 max_connections = 1
-max_connections = 500
+min_connections = 50
 
 #unbound_config - configuration for libunbound
 #retries - number of retries on SERVFAIL
