@@ -30,21 +30,24 @@ except:
 
 class DbPool(object):
 	"""DB class that makes connection transparently. Thread-safe - every
-	thread get its own database connection. Not meant to be used directly,
-	there is no reason to have more than one instance - global variable Db
-	- in this module."""
+	thread get its own database connection.
+	"""
 
-	def __init__(self, config):
+	def __init__(self, config, min_connections=1, max_connections=5):
 		"""Configures the Db, connection is not created yet.
-		@param config: instance of RawConfigParser or subclass."""
+		
+		@param config: instance of RawConfigParser or subclass.
+		@param min_connections: minimum connections in pool
+		@param max_connections: maximum allowed connections in pool
+		"""
 
 		self.host = config.get("database", "host")
 		self.port = config.getint("database", "port")
 		self.user = config.get("database", "user")
 		self.password = config.get("database", "password")
 		self.db_name = config.get("database", "dbname")
-		self.min_connections = config.getint("database", "min_connections")
-		self.max_connections = config.getint("database", "max_connections")
+		self.min_connections = min_connections
+		self.max_connections = max_connections
 
 		self.pool = PersistentConnectionPool(
 			minconn = self.min_connections,

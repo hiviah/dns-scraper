@@ -221,7 +221,8 @@ thread_count = int(sys.argv[3])
 db_config = SafeConfigParser()
 db_config.read(sys.argv[4])
 
-db = DbPool(db_config)
+#one DB connection per thread required
+db = DbPool(db_config, max_connections=thread_count)
 
 logging.basicConfig(filename="dns-scraper.log", level=logging.DEBUG,
 	format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")

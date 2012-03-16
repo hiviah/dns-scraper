@@ -1,15 +1,12 @@
 #PostgreSQL configuration data
 # host, port, user, password - data needed to create the connection
 # dbname - database name used (in case it would clash with your existing DB)
-# min/max_connections - limit on connection connection count, each scan thread uses one
 [database]
 host = localhost
 port = 5432
 user = perspectives
 password = db_password
 dbname = dnsscraper
-max_connections = 1
-min_connections = 50
 
 #unbound_config - configuration for libunbound
 #retries - number of retries on SERVFAIL
