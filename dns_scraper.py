@@ -27,6 +27,8 @@ import struct
 from binascii import hexlify
 from ConfigParser import SafeConfigParser
 
+import ldns
+
 from db import DbPool
 from unbound import ub_ctx, ub_version, ub_strerror, RR_CLASS_IN, RR_TYPE_DNSKEY, RR_TYPE_A, \
 	RR_TYPE_AAAA, RR_TYPE_SSHFP, RR_TYPE_MX, RR_TYPE_DS, RR_TYPE_NSEC, \
@@ -35,11 +37,36 @@ from unbound import ub_ctx, ub_version, ub_strerror, RR_CLASS_IN, RR_TYPE_DNSKEY
 
 RR_TYPE_SPF = 99
 
-class UnboundError(RuntimeError):
-	"""Exception for reporting internal unbound errors"""
+class DnsError(RuntimeError):
+	"""Exception for reporting internal unbound and ldns errors"""
+	
 	def __init__(self, reason):
-		super(RuntimeError, self).__init__(reason)
+		super(DnsError, self).__init__(reason)
 
+class DnssecMetadata(object):
+	"""Represents DNSSEC metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
+	The unbound-1.4.16 patch in "patches" directory is required for this to
+	work.
+	"""
+	
+	def __init__(self, dns_result):
+		"""Fills self with parsed data from DNS answer.
+		
+		@param dns_result: ub_result from ub_ctx.resolve (the second from tuple)
+		"""
+		status, pkt = ldns.ldns_wire2pkt(dns_result.packet)
+		
+		if status != 0:
+			raise DnsError("Failed to parse DNS packet: %s" % ldns.ldns_get_errorstr_by_id(status))
+		
+		rrsigs = pkt.rr_list_by_type(RR_TYPE_RRSIG, ldns.LDNS_SECTION_ANY_NOQUESTION)
+		nsecs  = pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_ANY_NOQUESTION)
+		nsec3s = pkt.rr_list_by_type(RR_TYPE_NSEC3, ldns.LDNS_SECTION_ANY_NOQUESTION)
+		
+		self.rrsigs = rrsigs and [rrsigs.rr(i) for i in range(rrsigs.rr_count())] or []
+		self.nsecs  = nsecs  and [nsecs.rr(i)  for i in range(nsecs.rr_count()) ] or []
+		self.nsec3s = nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
+		
 class RRType_Parser(object):
 	"""Abstract class for parsing and storing of all RR types. Does up to 3
 	attempts on SERVFAIL"""
@@ -211,41 +238,42 @@ class DnsScanThread(threading.Thread):
 			self.task_queue.task_done()
 
 
-if len(sys.argv) != 5: 
-	print >> sys.stderr, "ERROR: usage: <domain_file> <ta_file> <thread_count> <db_config>" 
-	sys.exit(1)
+if __name__ == '__main__':
+	if len(sys.argv) != 5: 
+		print >> sys.stderr, "ERROR: usage: <domain_file> <ta_file> <thread_count> <db_config>" 
+		sys.exit(1)
+		
+	domain_file = file(sys.argv[1])
+	ta_file = sys.argv[2]
+	thread_count = int(sys.argv[3])
+	db_config = SafeConfigParser()
+	db_config.read(sys.argv[4])
 	
-domain_file = file(sys.argv[1])
-ta_file = sys.argv[2]
-thread_count = int(sys.argv[3])
-db_config = SafeConfigParser()
-db_config.read(sys.argv[4])
-
-#one DB connection per thread required
-db = DbPool(db_config, max_connections=thread_count)
-
-logging.basicConfig(filename="dns-scraper.log", level=logging.DEBUG,
-	format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
-
-logging.info("Unbound version: %s", ub_version())
-
-task_queue = Queue.Queue(5000)
-
-parsers = [A_Parser, DnskeyParser]
-
-for i in range(thread_count):
-	t = DnsScanThread(task_queue, ta_file, parsers, db)
-	t.setDaemon(True)
-	t.start()
-
-start_time = time.time()
-domain_count = 0
-
-for line in domain_file:
-	domain = line.rstrip()
-	task_queue.put(domain)
-	domain_count += 1
+	#one DB connection per thread required
+	db = DbPool(db_config, max_connections=thread_count)
 	
-task_queue.join()
-
-logging.info("Fetch of dnskeys for %d domains took %.2f seconds", domain_count, time.time() - start_time)
+	logging.basicConfig(filename="dns-scraper.log", level=logging.DEBUG,
+		format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
+	
+	logging.info("Unbound version: %s", ub_version())
+	
+	task_queue = Queue.Queue(5000)
+	
+	parsers = [A_Parser, DnskeyParser]
+	
+	for i in range(thread_count):
+		t = DnsScanThread(task_queue, ta_file, parsers, db)
+		t.setDaemon(True)
+		t.start()
+	
+	start_time = time.time()
+	domain_count = 0
+	
+	for line in domain_file:
+		domain = line.rstrip()
+		task_queue.put(domain)
+		domain_count += 1
+		
+	task_queue.join()
+	
+	logging.info("Fetch of dnskeys for %d domains took %.2f seconds", domain_count, time.time() - start_time)
