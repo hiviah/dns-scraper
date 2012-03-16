@@ -1,0 +1,21 @@
+--- unbound-1.4.16.orig/libunbound/python/libunbound.i	2009-04-01 16:34:13.000000000 +0200
++++ unbound-1.4.16/libunbound/python/libunbound.i	2012-03-16 13:49:43.190739283 +0100
+@@ -768,6 +768,10 @@
+      
+      return list;
+   }
++
++  PyObject* _packet() {
++      return PyString_FromStringAndSize($self->answer_packet, $self->answer_len);
++  }
+   
+  %pythoncode %{
+    def __init__(self):
+@@ -805,6 +809,7 @@
+        return ub_data(self._ub_result_data(self))
+   
+    __swig_getmethods__["data"] = _get_data
++   __swig_getmethods__["packet"] = _packet
+    data = property(_get_data, doc="Returns :class:`ub_data` instance containing various decoding functions or None")
+ 
+ %}
