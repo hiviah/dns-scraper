@@ -88,13 +88,13 @@ class RRType_Parser(object):
 		SRV and TLSA.
 		
 		@returns: result part from (status, result) tupe of ub_ctx.resolve() or None on permanent SERVFAIL
-		@throws: UnboundError if unbound reports error
+		@throws: DnsError if unbound reports error
 		"""
 		for i in range(self.attempts):
 			(status, result) = self.resolver.resolve(self.domain, self.rrType, self.rrClass)
 			
 			if status != 0:
-				raise UnboundError("Resolving %s for %s: %s" % \
+				raise DnsError("Resolving %s for %s: %s" % \
 					(self.__class__.__name__, self.domain, ub_strerror(status)))
 			
 			if result.rcode != RCODE_SERVFAIL:
@@ -123,7 +123,7 @@ class A_Parser(RRType_Parser):
 	def fetchAndStore(self, conn):
 		try:
 			r = RRType_Parser.fetch(self)
-		except UnboundError:
+		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
 		
 		if r.havedata:
@@ -161,7 +161,7 @@ class DnskeyParser(RRType_Parser):
 	def fetchAndStore(self, conn):
 		try:
 			result = RRType_Parser.fetch(self)
-		except UnboundError:
+		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
 		
 		keys = []
