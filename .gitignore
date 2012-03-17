@@ -1,3 +1,13 @@
 dns-scraper.komodoproject
 keys
 .*.swp
+
+*.pyc
+
+#patched unbound
+_unbound.so*
+unbound.py
+
+#local configurations/logs
+dns_scraper.config
+dns_scraper.log
