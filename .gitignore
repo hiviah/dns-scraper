@@ -2,7 +2,10 @@ dns-scraper.komodoproject
 keys
 .*.swp
 
+#generated stuff
 *.pyc
+*.pyo
+README.html
 
 #patched unbound
 _unbound.so*
