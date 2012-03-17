@@ -241,8 +241,8 @@ class DnsScanThread(threading.Thread):
 		threading.Thread.__init__(self)
 		
 		self.resolver = ub_ctx()
-		#self.resolver.resolvconf("/etc/resolv.conf")
-		#self.resolver.set_fwd("127.0.0.1")
+		if opts.forwarder:
+			self.resolver.set_fwd(opts.forwarder)
 		self.resolver.add_ta_file(ta_file) #read public keys for DNSSEC verification
 
 	def run(self):

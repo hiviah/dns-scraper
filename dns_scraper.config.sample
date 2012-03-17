@@ -8,7 +8,7 @@ user = some_user
 password = db_password
 dbname = dns_scraper
 
-#unbound_config - configuration for libunbound (optional)
+#unbound_config - fine-tuned configuration for libunbound (optional)
 #forwarder - if you want to use forwarder recursive DNS server (optional)
 #retries - number of retries on SERVFAIL
 [dns]
