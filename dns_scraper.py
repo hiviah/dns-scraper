@@ -44,6 +44,26 @@ class DnsError(RuntimeError):
 	def __init__(self, reason):
 		super(DnsError, self).__init__(reason)
 
+class DnsConfigOptions(object):
+	"""Container for parameters present in config file related to DNS
+	resolution.
+	"""
+	
+	def __init__(self, scraperConfig):
+		"""Load options from configParser.
+		@param scraperConfig: instance of RawConfigParser or subclass
+		"""
+		self.unboundConfig = None
+		self.forwarder = None
+		self.attempts = scraperConfig.getint("dns", "retries")
+		
+		if scraperConfig.has_option("dns", "unbound_config"):
+			self.unboundConfig = scraperConfig.get("dns", "unboundConfig")
+		if scraperConfig.has_option("dns", "forwarder"):
+			self.forwarder = scraperConfig.get("dns", "forwarder")
+			
+			
+		
 class DnssecMetadata(object):
 	"""Represents DNSSEC metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
 	The unbound-1.4.16 patch in "patches" directory is required for this to
@@ -74,15 +94,15 @@ class RRType_Parser(object):
 	rrType = 0 #undefined RR type
 	rrClass = RR_CLASS_IN
 	
-	def __init__(self, domain, resolver, attempts=3):
+	def __init__(self, domain, resolver, opts):
 		"""Create instance.
 		@param domain: domain to scan for
 		@param resolver: ub_ctx to use for resolving
-		@param attempts: max retries on SERVFAIL rcode
+		@param opts: instance of DnsConfigOptions
 		"""
 		self.domain = domain
 		self.resolver = resolver
-		self.attempts = attempts
+		self.opts = opts
 	
 	def fetch(self):
 		"""Generic fetching of record that are not of special form like
@@ -91,7 +111,7 @@ class RRType_Parser(object):
 		@returns: result part from (status, result) tupe of ub_ctx.resolve() or None on permanent SERVFAIL
 		@throws: DnsError if unbound reports error
 		"""
-		for i in range(self.attempts):
+		for i in range(self.opts.attempts):
 			(status, result) = self.resolver.resolve(self.domain, self.rrType, self.rrClass)
 			
 			if status != 0:
@@ -118,8 +138,8 @@ class A_Parser(RRType_Parser):
 	
 	rrType = RR_TYPE_A
 	
-	def __init__(self, domain, resolver, attempts=3):
-		RRType_Parser.__init__(self, domain, resolver, attempts)
+	def __init__(self, domain, resolver, opts):
+		RRType_Parser.__init__(self, domain, resolver, opts)
 	
 	def fetchAndStore(self, conn):
 		try:
@@ -156,8 +176,8 @@ class DnskeyParser(RRType_Parser):
 
 	rrType = RR_TYPE_DNSKEY
 	
-	def __init__(self, domain, resolver, attempts=3):
-		RRType_Parser.__init__(self, domain, resolver, attempts)
+	def __init__(self, domain, resolver, opts):
+		RRType_Parser.__init__(self, domain, resolver, opts)
 	
 	def fetchAndStore(self, conn):
 		try:
@@ -204,19 +224,19 @@ class DnskeyParser(RRType_Parser):
 
 class DnsScanThread(threading.Thread):
 
-	def __init__(self, task_queue, ta_file, rr_scanners, db, attempts):
+	def __init__(self, task_queue, ta_file, rr_scanners, db, opts):
 		"""Create scanning thread.
 		
 		@param task_queue: Queue.Queue containing domains to scan as strings
 		@param ta_file: trust anchor file for libunbound
 		@param rr_scanners: list of subclasses of RRType_Parser to use for scan
 		@param db: database connection pool, instance of db.DbPool
-		@param attempts: max retries on SERVFAIL
+		@param opts: instance of DnsConfigOptions
 		"""
 		self.task_queue = task_queue
 		self.rr_scanners = rr_scanners
 		self.db = db
-		self.attempts = attempts
+		self.opts = opts
 		
 		threading.Thread.__init__(self)
 		
@@ -232,13 +252,25 @@ class DnsScanThread(threading.Thread):
 			
 			for parserClass in self.rr_scanners:
 				try:
-					parser = parserClass(domain, self.resolver, self.attempts)
+					parser = parserClass(domain, self.resolver, self.opts)
 					parser.fetchAndStore(conn)
 				except Exception:
 					logging.exception("Failed to scan domain %s with %s",
 						domain, parserClass.__class__.__name__)
 				
 			self.task_queue.task_done()
+
+
+def convertLoglevel(levelString):
+	"""Converts string 'debug', 'info', etc. into corresponding
+	logging.XXX value which is returned.
+	
+	@raises ValueError if the level is undefined
+	"""
+	try:
+		return getattr(logging, levelString.upper())
+	except AttributeError:
+		raise ValueError("No such loglevel - %s" % levelString)
 
 
 if __name__ == '__main__':
@@ -253,24 +285,26 @@ if __name__ == '__main__':
 	scraperConfig.read(sys.argv[4])
 	
 	#DNS resolution options
-	servfailAttempts = scraperConfig.getint("dns", "retries")
-	if scraperConfig.has_option("dns", "unbound_config"):
-		ub_ctx_config(scraperConfig.get("dns", "unbound_config"))
+	opts = DnsConfigOptions(scraperConfig)
+	if opts.unboundConfig:
+		ub_ctx_config(opts.unboundConfig)
 	
 	#one DB connection per thread required
 	db = DbPool(scraperConfig, max_connections=thread_count)
 	
-	logging.basicConfig(filename="dns_scraper.log", level=logging.DEBUG,
+	logfile = scraperConfig.get("log", "logfile")
+	loglevel = convertLoglevel(scraperConfig.get("log", "loglevel"))
+	logging.basicConfig(filename=logfile, level=loglevel,
 		format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
 	
-	logging.info("Unbound version: %s", ub_version())
+	#logging.info("Unbound version: %s", ub_version())
 	
 	task_queue = Queue.Queue(5000)
 	
 	parsers = [A_Parser, DnskeyParser]
 	
 	for i in range(thread_count):
-		t = DnsScanThread(task_queue, ta_file, parsers, db, servfailAttempts)
+		t = DnsScanThread(task_queue, ta_file, parsers, db, opts)
 		t.setDaemon(True)
 		t.start()
 	

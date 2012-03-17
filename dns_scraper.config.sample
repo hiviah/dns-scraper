@@ -9,7 +9,15 @@ password = db_password
 dbname = dns_scraper
 
 #unbound_config - configuration for libunbound (optional)
+#forwarder - if you want to use forwarder recursive DNS server (optional)
 #retries - number of retries on SERVFAIL
 [dns]
 #unbound_config = unbound.config
+#forwarder = 127.0.0.1
 retries = 3
+
+#logfile - logging/debug stuff gets dumped here
+#loglevel - one of debug, info, warning, error, fatal
+[log]
+logfile = dns_scraper.log
+loglevel = debug
