@@ -19,14 +19,14 @@ stable unbound 1.4.16.
 
 1. Download unbound-1.4.16.tar.gz from [unbound.net](http://unbound.net/download.html)
 2. Unpack e.g. in ~/tmp: tar xzf unbound-1.4.16.tar.gz
-3. Still in tmp, do: 
+3. Still in ~/tmp, do: 
 
     `patch -p0 < /path/to/dns-scraper/patches/unbound-1.4.16_pythonmodule_packet.patch`
 
 4. configure and build unbound (no need for 'make install'):
 
-    ./configure --disable-gost --with-pthreads --with-pyunbound --with-pythonmodule --with-libevent
-    make
+    `./configure --disable-gost --with-pthreads --with-pyunbound --with-pythonmodule --with-libevent`
+    `make`
 
 5. copy over the _unbound.so and unbound.py to dns-scraper directory:
 
