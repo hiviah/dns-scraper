@@ -1,4 +1,4 @@
-DROP TABLE IF EXISTS a_rr;
+DROP TABLE IF EXISTS aa_rr;
 DROP TABLE IF EXISTS rrsig_rr;
 
 -- Table for RRSIGs
@@ -17,6 +17,8 @@ CREATE TABLE rrsig_rr (
     signature VARCHAR NOT NULL
 );
 
+CREATE INDEX rrsig_rr_domain_idx ON rrsig_rr (domain);
+
 -- Table for A and AAAA records
 CREATE TABLE aa_rr (
     id SERIAL PRIMARY KEY,
@@ -26,5 +28,5 @@ CREATE TABLE aa_rr (
     rrsig_id INTEGER REFERENCES rrsig_rr(id)
 );
 
--- not using unique constraints yet
--- CREATE UNIQUE INDEX aa_rr_idx on aa_rr (domain, addr, rrsig_id);
+CREATE INDEX aa_rr_domain_idx ON aa_rr (domain);
+
