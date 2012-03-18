@@ -88,6 +88,17 @@ class DnssecMetadata(object):
 		self.nsecs  = nsecs  and [nsecs.rr(i)  for i in range(nsecs.rr_count()) ] or []
 		self.nsec3s = nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
 		
+def validationToDbEnum(result):
+	"""Given ub_result, returns on of three strings usable for the "secure"
+	field in DB (secure, insecure, bogus).
+	"""
+	if result.secure:
+		return "secure"
+	elif result.bogus:
+		return "bogus"
+	else:
+		return "insecure"
+
 class RRType_Parser(object):
 	"""Abstract class for parsing and storing of all RR types."""
 	
@@ -148,7 +159,18 @@ class A_Parser(RRType_Parser):
 			logging.exception("Fetching of %s failed" % self.domain)
 		
 		if r.havedata:
-			print "%s: %s" % (self.domain, r.data.as_address_list())
+			cursor = conn.cursor()
+			secure = validationToDbEnum(r)
+			
+			sql = """INSERT INTO aa_rr (secure, domain, ttl, addr)
+				VALUES (%s, %s, %s, %s)
+				"""
+			try:
+				for addr in r.data.address_list:
+					sql_data = (secure, self.domain, 10, addr)
+					cursor.execute(sql, sql_data)
+			finally:
+				conn.commit()
 	
 class RSAKey(object):
 
@@ -294,8 +316,12 @@ if __name__ == '__main__':
 	
 	logfile = scraperConfig.get("log", "logfile")
 	loglevel = convertLoglevel(scraperConfig.get("log", "loglevel"))
-	logging.basicConfig(filename=logfile, level=loglevel,
-		format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
+	if logfile == "-":
+		logging.basicConfig(stream=sys.stderr, level=loglevel,
+			format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
+	else:
+		logging.basicConfig(filename=logfile, level=loglevel,
+			format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
 	
 	#logging.info("Unbound version: %s", ub_version())
 	

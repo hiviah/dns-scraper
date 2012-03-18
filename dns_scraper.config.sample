@@ -16,7 +16,7 @@ dbname = dns_scraper
 #forwarder = 127.0.0.1
 retries = 3
 
-#logfile - logging/debug stuff gets dumped here
+#logfile - logging/debug stuff gets dumped here, use "-" for stdout (without quotes)
 #loglevel - one of debug, info, warning, error, fatal
 [log]
 logfile = dns_scraper.log
