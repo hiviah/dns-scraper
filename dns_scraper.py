@@ -29,6 +29,7 @@ import Queue
 import logging
 import struct
 
+from datetime import datetime
 from binascii import hexlify
 from ConfigParser import SafeConfigParser
 
@@ -81,27 +82,6 @@ def result2pkt(result):
 	
 	return pkt
 	
-class DnsMetadata(object):
-	"""Represents DNS(SEC) metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
-	These are some things we need to parse from answer packet by ldns.
-	"""
-	
-	def __init__(self, dns_result):
-		"""Fills self with parsed data from DNS answer.
-		
-		@param dns_result: ub_result from ub_ctx.resolve (the second from tuple)
-		@raises DnsError: on malformed packet
-		"""
-		pkt = result2pkt(dns_result)
-		
-		rrsigs = pkt.rr_list_by_type(RR_TYPE_RRSIG, ldns.LDNS_SECTION_ANY_NOQUESTION)
-		nsecs  = pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_ANY_NOQUESTION)
-		nsec3s = pkt.rr_list_by_type(RR_TYPE_NSEC3, ldns.LDNS_SECTION_ANY_NOQUESTION)
-		
-		self.rrsigs = rrsigs and [rrsigs.rr(i) for i in range(rrsigs.rr_count())] or []
-		self.nsecs  = nsecs  and [nsecs.rr(i)  for i in range(nsecs.rr_count()) ] or []
-		self.nsec3s = nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
-		
 def validationToDbEnum(result):
 	"""Given ub_result, returns on of three strings usable for the "secure"
 	field in DB (secure, insecure, bogus).
@@ -112,6 +92,88 @@ def validationToDbEnum(result):
 		return "bogus"
 	else:
 		return "insecure"
+
+
+class DnsMetadata(object):
+	"""Represents DNS(SEC) metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
+	These are some things we need to parse from answer packet by ldns.
+	"""
+	
+	def __init__(self, pkt, rrType):
+		"""Fills self with parsed data from DNS answer.
+		
+		@param pkt: ldns_pkt DNS answer packet
+		@param rrType: RR type to use for RR selection
+		"""
+		self.pkt = pkt
+		self.rrType = rrType
+		
+	@staticmethod
+	def getRdfData(rdf):
+		"""Return RDF bytes as pythonic string"""
+		#ldns API is simply an abomination
+		l = rdf.size()
+		buf = ldns.ldns_buffer(rdf.size())
+		rdf.write_to_buffer_canonical(buf)
+		buf.flip()
+		
+		s = ""
+		for i in range(l):
+			s += chr(buf.read_u8())
+		return s
+		
+	def rrsigs(self, section=ldns.LDNS_SECTION_ANSWER):
+		"""Return RRSIGs from selected section"""
+		rrsigs = self.pkt.rr_list_by_type(RR_TYPE_RRSIG, section)
+		return rrsigs and [rrsigs.rr(i) for i in range(rrsigs.rr_count())] or []
+		
+	def rrsigsStore(self, domain, conn, section=ldns.LDNS_SECTION_ANSWER):
+		"""Store RRSIGs from from given section of this packet in DB
+		with connection conn. Stores each RRSIG in separate transaction.
+		"""
+		rrsigs = self.rrsigs(section)
+		cursor = conn.cursor()
+		sql = """INSERT INTO rrsig_rr
+			(domain, ttl, rr_type, algo, labels, orig_ttl, sig_expiration,
+			sig_inception, keytag, signer, signature)
+			VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+			"""
+		
+		#helper functions for unpacking and converting fields of RRSIGs
+		ident = lambda x: x #"identity" conversion function
+		ru = lambda rdf, fmt, conv=ident: conv(struct.unpack(fmt, self.getRdfData(rdf))[0])
+		
+		for rr in rrsigs:
+			try:
+				ttl = rr.ttl()
+				algo = ru(rr.rrsig_algorithm(), "B")
+				labels = ru(rr.rrsig_labels(), "B")
+				orig_ttl = ru(rr.rrsig_origttl(), "!I")
+				sig_expiration = ru(rr.rrsig_expiration(), "!I", datetime.fromtimestamp)
+				sig_inception = ru(rr.rrsig_inception(), "!I", datetime.fromtimestamp)
+				keytag = ru(rr.rrsig_keytag(), "!H")
+				signer = str(rr.rrsig_signame()).rstrip(".")
+				signature = buffer(self.getRdfData(rr.rrsig_sig()))
+				
+				sql_data = (domain, ttl, self.rrType, algo, labels, orig_ttl, sig_expiration,
+					    sig_inception, keytag, signer, signature)
+				cursor.execute(sql, sql_data)
+				
+			except:
+				logging.exception("Failed to store RRSIG %s" % rr)
+			finally:
+				conn.commit()
+		
+	def nsecs(self):
+		"""Return NSEC records from additional section"""
+		nsecs  = self.pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_ADDITIONAL)
+		return nsecs  and [nsecs.rr(i)  for i in range(nsecs.rr_count()) ] or []
+		
+	def nsec3s(self):
+		"""Return NSEC3 records from additional section"""
+		nsec3s = self.pkt.rr_list_by_type(RR_TYPE_NSEC3, ldns.LDNS_SECTION_ADDITIONAL)
+		return nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
+		
 
 class RRType_Parser(object):
 	"""Abstract class for parsing and storing of all RR types."""
@@ -178,6 +240,7 @@ class A_Parser(RRType_Parser):
 			pkt = result2pkt(r)
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
+			meta = DnsMetadata(pkt, self.rrType)
 			
 			sql = """INSERT INTO aa_rr (secure, domain, ttl, addr)
 				VALUES (%s, %s, %s, %s)
@@ -192,6 +255,8 @@ class A_Parser(RRType_Parser):
 					cursor.execute(sql, sql_data)
 			finally:
 				conn.commit()
+				
+			meta.rrsigsStore(self.domain, conn)
 
 class AAAA_Parser(A_Parser):
 	
