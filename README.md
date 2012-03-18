@@ -3,8 +3,6 @@
 This is a simple threaded scanner of various DNS records, mostly targeted at
 various DNSSEC stuff.
 
-It's not finished yet (as in: may do exactly almost nothing).
-
 ## Requirements
 
 * python-ldns
