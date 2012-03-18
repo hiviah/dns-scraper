@@ -177,7 +177,7 @@ class A_Parser(RRType_Parser):
 			secure = validationToDbEnum(r)
 			pkt = result2pkt(r)
 			
-			rrs = pkt.rr_list_by_type(RR_TYPE_A, ldns.LDNS_SECTION_ANSWER)
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
 			sql = """INSERT INTO aa_rr (secure, domain, ttl, addr)
 				VALUES (%s, %s, %s, %s)
@@ -192,6 +192,11 @@ class A_Parser(RRType_Parser):
 					cursor.execute(sql, sql_data)
 			finally:
 				conn.commit()
+
+class AAAA_Parser(A_Parser):
+	
+	rrType = RR_TYPE_AAAA
+	
 	
 class RSAKey(object):
 
@@ -348,7 +353,7 @@ if __name__ == '__main__':
 	
 	task_queue = Queue.Queue(5000)
 	
-	parsers = [A_Parser, DnskeyParser]
+	parsers = [A_Parser, AAAA_Parser]
 	
 	for i in range(thread_count):
 		t = DnsScanThread(task_queue, ta_file, parsers, db, opts)
