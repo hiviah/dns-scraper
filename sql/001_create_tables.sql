@@ -40,7 +40,7 @@ CREATE TABLE dnskey_rr (
     secure validation_result,
     domain VARCHAR(255) NOT NULL,
     ttl INTEGER NOT NULL,
-    flags SMALLINT NOT NULL,
+    flags INTEGER NOT NULL,
     protocol SMALLINT NOT NULL,
     algo SMALLINT NOT NULL,
     pubkey BYTEA NOT NULL
