@@ -17,6 +17,11 @@
 #   You should have received a copy of the GNU General Public License
 #   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+"""
+The unbound-1.4.16 patch in "patches" directory is required for this to
+work. See README.md.
+"""
+
 import time
 import sys
 import threading
@@ -64,21 +69,30 @@ class DnsConfigOptions(object):
 			
 			
 		
-class DnssecMetadata(object):
-	"""Represents DNSSEC metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
-	The unbound-1.4.16 patch in "patches" directory is required for this to
-	work.
+def result2pkt(result):
+	"""Extract ldns packet from ub_result.
+	
+	@raises DnsError: on malformed packet
+	"""
+	status, pkt = ldns.ldns_wire2pkt(result.packet)
+	
+	if status != 0:
+		raise DnsError("Failed to parse DNS packet: %s" % ldns.ldns_get_errorstr_by_id(status))
+	
+	return pkt
+	
+class DnsMetadata(object):
+	"""Represents DNS(SEC) metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
+	These are some things we need to parse from answer packet by ldns.
 	"""
 	
 	def __init__(self, dns_result):
 		"""Fills self with parsed data from DNS answer.
 		
 		@param dns_result: ub_result from ub_ctx.resolve (the second from tuple)
+		@raises DnsError: on malformed packet
 		"""
-		status, pkt = ldns.ldns_wire2pkt(dns_result.packet)
-		
-		if status != 0:
-			raise DnsError("Failed to parse DNS packet: %s" % ldns.ldns_get_errorstr_by_id(status))
+		pkt = result2pkt(dns_result)
 		
 		rrsigs = pkt.rr_list_by_type(RR_TYPE_RRSIG, ldns.LDNS_SECTION_ANY_NOQUESTION)
 		nsecs  = pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_ANY_NOQUESTION)
@@ -161,13 +175,20 @@ class A_Parser(RRType_Parser):
 		if r.havedata:
 			cursor = conn.cursor()
 			secure = validationToDbEnum(r)
+			pkt = result2pkt(r)
+			
+			rrs = pkt.rr_list_by_type(RR_TYPE_A, ldns.LDNS_SECTION_ANSWER)
 			
 			sql = """INSERT INTO aa_rr (secure, domain, ttl, addr)
 				VALUES (%s, %s, %s, %s)
 				"""
 			try:
-				for addr in r.data.address_list:
-					sql_data = (secure, self.domain, 10, addr)
+				for i in range(rrs.rr_count()):
+					rr = rrs.rr(i)
+					addr = str(rr.a_address())
+					ttl = rr.ttl()
+					
+					sql_data = (secure, self.domain, ttl, addr)
 					cursor.execute(sql, sql_data)
 			finally:
 				conn.commit()
