@@ -21,7 +21,7 @@ CREATE TABLE rrsig_rr (
     signature BYTEA NOT NULL
 );
 
-CREATE INDEX rrsig_rr_domain_idx ON rrsig_rr (domain, rr_type);
+CREATE INDEX rrsig_rr_domain_type_idx ON rrsig_rr (domain, rr_type);
 
 -- Table for A and AAAA records
 CREATE TABLE aa_rr (
@@ -43,8 +43,10 @@ CREATE TABLE dnskey_rr (
     flags INTEGER NOT NULL,
     protocol SMALLINT NOT NULL,
     algo SMALLINT NOT NULL,
-    pubkey BYTEA NOT NULL
+    rsa_exp INTEGER, -- bigger exponents will have -1 here and pubkey will be unparsed in other_key field
+    rsa_mod BYTEA, -- RSA exponent without leading zeros if exponent fits in rsa_exp
+    other_key BYTEA -- all other non-RSA keys unparsed (including RSA keys with too large exponent)
 );
 
-CREATE INDEX dnskey_rr_domain_idx ON dnskey_rr (domain);
+CREATE INDEX dnskey_rr_domain_algo_idx ON dnskey_rr (domain, algo);
 
