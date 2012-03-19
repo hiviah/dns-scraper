@@ -370,7 +370,7 @@ class DNSKEYParser(RRTypeParser):
 							other_key = buffer(pubkey)
 							exponent = -1
 						else:
-							modulus  = buffer(pubkey[exp_hdr_len + exp_len:])
+							modulus  = buffer(pubkey[exp_hdr_len + exp_len:].lstrip('\0'))
 						
 					else: #not a RSA key
 						other_key = buffer(pubkey)
