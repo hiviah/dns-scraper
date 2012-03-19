@@ -138,7 +138,7 @@ class DnsMetadata(object):
 			sig_expiration, sig_inception,
 			keytag, signer, signature)
 			VALUES (%s, %s, %s, %s, %s, %s,
-				to_timestamp(%s) at time zone 'utc', to_timestamp(%s) at time zone 'utc',
+				to_timestamp(%s), to_timestamp(%s),
 				%s, %s, %s)
 			"""
 		
