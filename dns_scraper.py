@@ -93,6 +93,39 @@ def validationToDbEnum(result):
 	else:
 		return "insecure"
 
+def getLdnsBufferData(buf, l):
+	"""Return data from ldns_buffer buf of size l as pythonic string."""
+	buf.flip()
+	s = ""
+	for i in range(l):
+		s += chr(buf.read_u8())
+	return s
+	
+def getRdfData(rdf):
+	"""Return RDF bytes as pythonic string from ldns_rdf."""
+	l = rdf.size()
+	buf = ldns.ldns_buffer(l)
+	rdf.write_to_buffer_canonical(buf)
+	
+	return getLdnsBufferData(buf, l)
+	
+def getRrData(rr, section=ldns.LDNS_SECTION_ANSWER):
+	"""Return RR bytes as pythonic string from ldns_rr."""
+	l = rr.uncompressed_size()
+	buf = ldns.ldns_buffer(l)
+	rr.write_to_buffer_canonical(buf, section)
+	
+	return getLdnsBufferData(buf, l)
+
+def rdfConvert(rdf, fmt, conv=lambda x: x):
+	"""Unpack and convert data from ldns_rdf.
+	
+	@param rdf: ldns_rdf
+	@param fmt: format for struct.unpack
+	@param conv: conversion function to call on result of struct.unpack()
+	"""
+	return conv(struct.unpack(fmt, getRdfData(rdf))[0])
+		
 
 class DnsMetadata(object):
 	"""Represents DNS(SEC) metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
@@ -107,20 +140,6 @@ class DnsMetadata(object):
 		"""
 		self.pkt = pkt
 		self.rrType = rrType
-		
-	@staticmethod
-	def getRdfData(rdf):
-		"""Return RDF bytes as pythonic string"""
-		#ldns API is simply an abomination
-		l = rdf.size()
-		buf = ldns.ldns_buffer(rdf.size())
-		rdf.write_to_buffer_canonical(buf)
-		buf.flip()
-		
-		s = ""
-		for i in range(l):
-			s += chr(buf.read_u8())
-		return s
 		
 	def rrsigs(self, section=ldns.LDNS_SECTION_ANSWER):
 		"""Return RRSIGs from selected section"""
@@ -142,21 +161,17 @@ class DnsMetadata(object):
 				%s, %s, %s)
 			"""
 		
-		#helper functions for unpacking and converting fields of RRSIGs
-		ident = lambda x: x
-		ru = lambda rdf, fmt, conv=ident: conv(struct.unpack(fmt, self.getRdfData(rdf))[0])
-		
 		for rr in rrsigs:
 			try:
 				ttl = rr.ttl()
-				algo = ru(rr.rrsig_algorithm(), "B")
-				labels = ru(rr.rrsig_labels(), "B")
-				orig_ttl = ru(rr.rrsig_origttl(), "!I")
-				sig_expiration = ru(rr.rrsig_expiration(), "!I")
-				sig_inception = ru(rr.rrsig_inception(), "!I")
-				keytag = ru(rr.rrsig_keytag(), "!H")
+				algo = rdfConvert(rr.rrsig_algorithm(), "B")
+				labels = rdfConvert(rr.rrsig_labels(), "B")
+				orig_ttl = rdfConvert(rr.rrsig_origttl(), "!I")
+				sig_expiration = rdfConvert(rr.rrsig_expiration(), "!I")
+				sig_inception = rdfConvert(rr.rrsig_inception(), "!I")
+				keytag = rdfConvert(rr.rrsig_keytag(), "!H")
 				signer = str(rr.rrsig_signame()).rstrip(".")
-				signature = buffer(self.getRdfData(rr.rrsig_sig()))
+				signature = buffer(getRdfData(rr.rrsig_sig()))
 				
 				sql_data = (domain, ttl, self.rrType, algo, labels, orig_ttl, sig_expiration,
 					    sig_inception, keytag, signer, signature)
@@ -178,7 +193,7 @@ class DnsMetadata(object):
 		return nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
 		
 
-class RRType_Parser(object):
+class RRTypeParser(object):
 	"""Abstract class for parsing and storing of all RR types."""
 	
 	rrType = 0 #undefined RR type
@@ -224,16 +239,16 @@ class RRType_Parser(object):
 		raise NotImplementedError
 	
 
-class A_Parser(RRType_Parser):
+class AParser(RRTypeParser):
 	
 	rrType = RR_TYPE_A
 	
 	def __init__(self, domain, resolver, opts):
-		RRType_Parser.__init__(self, domain, resolver, opts)
+		RRTypeParser.__init__(self, domain, resolver, opts)
 	
 	def fetchAndStore(self, conn):
 		try:
-			r = RRType_Parser.fetch(self)
+			r = RRTypeParser.fetch(self)
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
 		
@@ -263,7 +278,7 @@ class A_Parser(RRType_Parser):
 				
 			meta.rrsigsStore(self.domain, conn)
 
-class AAAA_Parser(A_Parser):
+class AAAAParser(AParser):
 	
 	rrType = RR_TYPE_AAAA
 	
@@ -290,55 +305,76 @@ class DnskeyAlgo:
 	
 	algo_ids = algo_map.keys()
 
-class DnskeyParser(RRType_Parser):
+class DNSKEYParser(RRTypeParser):
 
 	rrType = RR_TYPE_DNSKEY
 	maxDbExp = 9223372036854775807 #maximum exponent that fits in dnskey_rr.rsa_exp field
 	
 	def __init__(self, domain, resolver, opts):
-		RRType_Parser.__init__(self, domain, resolver, opts)
+		RRTypeParser.__init__(self, domain, resolver, opts)
 	
 	def fetchAndStore(self, conn):
 		try:
-			result = RRType_Parser.fetch(self)
+			result = RRTypeParser.fetch(self)
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
 		
-		keys = []
+		secure = validationToDbEnum(result)
 		if result.havedata:
-			for key in result.data.data:
-				flags = struct.unpack("!H", key[:2])[0]
-				proto = ord(key[2])
-				algo = ord(key[3])
-				pubkey = key[4:]
-				
-				if algo not in DnskeyAlgo.algo_ids or proto != 3: #only RSA/x algorithms, must be DNSSEC protocol
-					logging.debug("Skipped key for domain %s - algorithm %s, proto %s, pubkey: %s", domain, algo, proto, hexlify(pubkey))
-					continue
-
-				#stupid RFC 2537/3110 exponent length encoding
-				exp_len0 = ord(pubkey[0])
-				if exp_len0 > 0:
-					exp_len = exp_len0
-					exp_hdr_len = 1
-				else:
-					exp_len = ord(pubkey[1]) << 8 + ord(pubkey[2])
-					exp_hdr_len = 3
-
-				exponent = pubkey[exp_hdr_len:exp_hdr_len + exp_len]
-				modulus  = pubkey[exp_hdr_len + exp_len:]
-				digest_algo = DnskeyAlgo.algo_map[algo]
-
-				if flags == 257:
-					key_purpose = "KSK"
-				elif flags == 256:
-					key_purpose = "ZSK"
-				else:
-					key_purpose = "?SK_%04x" % flags #for revoked bit and other reserved bits
-
-				keys.append(RSAKey(exponent, modulus, digest_algo, key_purpose))
+			cursor = conn.cursor()
+			pkt = result2pkt(result)
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			print self.domain, keys
+			sql = """INSERT INTO dnskey_rr
+					(secure, domain, ttl, flags, protocol, algo, rsa_exp, rsa_mod, other_key)
+					VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)
+				"""
+			
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					ttl = rr.ttl()
+					flags = rdfConvert(rr.rdf(0), "!H")
+					proto = rdfConvert(rr.rdf(1), "B")
+					algo = rdfConvert(rr.rdf(2), "B")
+					pubkey = getRdfData(rr.rdf(3))
+					
+					#if algo not in DnskeyAlgo.algo_ids or proto != 3: #only RSA/x algorithms, must be DNSSEC protocol
+					#	logging.debug("Skipped key for domain %s - algorithm %s, proto %s, pubkey: %s", domain, algo, proto, hexlify(pubkey))
+					#	continue
+	
+					exponent = None
+					modulus = None
+					other_key = None
+					
+					if algo in DnskeyAlgo.algo_ids: #we have RSA key
+						
+						#RFC 2537/3110 exponent length encoding
+						exp_len0 = ord(pubkey[0])
+						if exp_len0 > 0:
+							exp_len = exp_len0
+							exp_hdr_len = 1
+						else:
+							exp_len = ord(pubkey[1]) << 8 + ord(pubkey[2])
+							exp_hdr_len = 3
+		
+						exponent = int(hexlify(pubkey[exp_hdr_len:exp_hdr_len + exp_len]), 16)
+						if exponent > self.maxDbExp: #needs to fit into DB field
+							other_key = buffer(pubkey)
+							exponent = -1
+						else:
+							modulus  = buffer(pubkey[exp_hdr_len + exp_len:])
+						
+					else: #not a RSA key
+						other_key = buffer(pubkey)
+					
+					sql_data = (secure, self.domain, ttl, flags, proto, algo, exponent, modulus, other_key)
+					cursor.execute(sql, sql_data)
+				except:
+					logging.exception("Failed to store DNSKEY RR %s", rr)
+				finally:
+					conn.commit()
+			
 	
 
 class DnsScanThread(threading.Thread):
@@ -348,7 +384,7 @@ class DnsScanThread(threading.Thread):
 		
 		@param task_queue: Queue.Queue containing domains to scan as strings
 		@param ta_file: trust anchor file for libunbound
-		@param rr_scanners: list of subclasses of RRType_Parser to use for scan
+		@param rr_scanners: list of subclasses of RRTypeParser to use for scan
 		@param db: database connection pool, instance of db.DbPool
 		@param opts: instance of DnsConfigOptions
 		"""
@@ -424,7 +460,7 @@ if __name__ == '__main__':
 	
 	task_queue = Queue.Queue(5000)
 	
-	parsers = [A_Parser, AAAA_Parser]
+	parsers = [AParser, AAAAParser, DNSKEYParser]
 	
 	for i in range(thread_count):
 		t = DnsScanThread(task_queue, ta_file, parsers, db, opts)
