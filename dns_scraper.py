@@ -28,9 +28,11 @@ import threading
 import Queue
 import logging
 import struct
+import pytz
 
 from datetime import datetime
 from binascii import hexlify
+from functools import partial
 from ConfigParser import SafeConfigParser
 
 import ldns
@@ -140,7 +142,8 @@ class DnsMetadata(object):
 			"""
 		
 		#helper functions for unpacking and converting fields of RRSIGs
-		ident = lambda x: x #"identity" conversion function
+		ident = lambda x: x
+		timestamp2UTC = partial(datetime.fromtimestamp, tz=pytz.UTC)
 		ru = lambda rdf, fmt, conv=ident: conv(struct.unpack(fmt, self.getRdfData(rdf))[0])
 		
 		for rr in rrsigs:
@@ -149,8 +152,8 @@ class DnsMetadata(object):
 				algo = ru(rr.rrsig_algorithm(), "B")
 				labels = ru(rr.rrsig_labels(), "B")
 				orig_ttl = ru(rr.rrsig_origttl(), "!I")
-				sig_expiration = ru(rr.rrsig_expiration(), "!I", datetime.fromtimestamp)
-				sig_inception = ru(rr.rrsig_inception(), "!I", datetime.fromtimestamp)
+				sig_expiration = ru(rr.rrsig_expiration(), "!I", timestamp2UTC)
+				sig_inception = ru(rr.rrsig_inception(), "!I", timestamp2UTC)
 				keytag = ru(rr.rrsig_keytag(), "!H")
 				signer = str(rr.rrsig_signame()).rstrip(".")
 				signature = buffer(self.getRdfData(rr.rrsig_sig()))
@@ -288,6 +291,7 @@ class DnskeyAlgo:
 class DnskeyParser(RRType_Parser):
 
 	rrType = RR_TYPE_DNSKEY
+	maxDbExp = 9223372036854775807 #maximum exponent that fits in dnskey_rr.rsa_exp field
 	
 	def __init__(self, domain, resolver, opts):
 		RRType_Parser.__init__(self, domain, resolver, opts)

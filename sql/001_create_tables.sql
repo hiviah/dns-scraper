@@ -14,8 +14,8 @@ CREATE TABLE rrsig_rr (
     algo SMALLINT NOT NULL,
     labels SMALLINT NOT NULL,
     orig_ttl INTEGER NOT NULL,
-    sig_expiration TIMESTAMP NOT NULL,
-    sig_inception TIMESTAMP NOT NULL,
+    sig_expiration TIMESTAMP NOT NULL, -- always UTC timezone
+    sig_inception TIMESTAMP NOT NULL,  -- always UTC timezone
     keytag INTEGER NOT NULL,
     signer VARCHAR(255) NOT NULL,
     signature BYTEA NOT NULL
@@ -43,7 +43,7 @@ CREATE TABLE dnskey_rr (
     flags INTEGER NOT NULL,
     protocol SMALLINT NOT NULL,
     algo SMALLINT NOT NULL,
-    rsa_exp INTEGER, -- bigger exponents will have -1 here and pubkey will be unparsed in other_key field
+    rsa_exp BIGINT, -- bigger exponents will have -1 here and pubkey will be unparsed in other_key field
     rsa_mod BYTEA, -- RSA exponent without leading zeros if exponent fits in rsa_exp
     other_key BYTEA -- all other non-RSA keys unparsed (including RSA keys with too large exponent)
 );
