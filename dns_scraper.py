@@ -28,11 +28,9 @@ import threading
 import Queue
 import logging
 import struct
-import pytz
 
 from datetime import datetime
 from binascii import hexlify
-from functools import partial
 from ConfigParser import SafeConfigParser
 
 import ldns
@@ -136,14 +134,16 @@ class DnsMetadata(object):
 		rrsigs = self.rrsigs(section)
 		cursor = conn.cursor()
 		sql = """INSERT INTO rrsig_rr
-			(domain, ttl, rr_type, algo, labels, orig_ttl, sig_expiration,
-			sig_inception, keytag, signer, signature)
-			VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+			(domain, ttl, rr_type, algo, labels, orig_ttl,
+			sig_expiration, sig_inception,
+			keytag, signer, signature)
+			VALUES (%s, %s, %s, %s, %s, %s,
+				to_timestamp(%s) at time zone 'utc', to_timestamp(%s) at time zone 'utc',
+				%s, %s, %s)
 			"""
 		
 		#helper functions for unpacking and converting fields of RRSIGs
 		ident = lambda x: x
-		timestamp2UTC = partial(datetime.fromtimestamp, tz=pytz.UTC)
 		ru = lambda rdf, fmt, conv=ident: conv(struct.unpack(fmt, self.getRdfData(rdf))[0])
 		
 		for rr in rrsigs:
@@ -152,8 +152,8 @@ class DnsMetadata(object):
 				algo = ru(rr.rrsig_algorithm(), "B")
 				labels = ru(rr.rrsig_labels(), "B")
 				orig_ttl = ru(rr.rrsig_origttl(), "!I")
-				sig_expiration = ru(rr.rrsig_expiration(), "!I", timestamp2UTC)
-				sig_inception = ru(rr.rrsig_inception(), "!I", timestamp2UTC)
+				sig_expiration = ru(rr.rrsig_expiration(), "!I")
+				sig_inception = ru(rr.rrsig_inception(), "!I")
 				keytag = ru(rr.rrsig_keytag(), "!H")
 				signer = str(rr.rrsig_signame()).rstrip(".")
 				signature = buffer(self.getRdfData(rr.rrsig_sig()))

@@ -14,8 +14,8 @@ CREATE TABLE rrsig_rr (
     algo SMALLINT NOT NULL,
     labels SMALLINT NOT NULL,
     orig_ttl INTEGER NOT NULL,
-    sig_expiration TIMESTAMP NOT NULL, -- always UTC timezone
-    sig_inception TIMESTAMP NOT NULL,  -- always UTC timezone
+    sig_expiration TIMESTAMP WITH TIME ZONE NOT NULL,
+    sig_inception TIMESTAMP WITH TIME ZONE NOT NULL,
     keytag INTEGER NOT NULL,
     signer VARCHAR(255) NOT NULL,
     signature BYTEA NOT NULL
