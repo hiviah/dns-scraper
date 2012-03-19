@@ -235,6 +235,7 @@ class RRTypeParser(object):
 	def fetchAndStore(self, conn):
 		"""Scan records for the domain and store results in DB.
 		@param conn: database connection from DBPool.connection()
+		@return: number of records of given RR type found
 		"""
 		raise NotImplementedError
 	
@@ -250,10 +251,10 @@ class AParser(RRTypeParser):
 		try:
 			r = RRTypeParser.fetch(self)
 			if not r:
-				return
+				return 0
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
-			return
+			return 0
 		
 		if r.havedata:
 			cursor = conn.cursor()
@@ -261,7 +262,6 @@ class AParser(RRTypeParser):
 			pkt = result2pkt(r)
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
-			meta = DnsMetadata(pkt, self.rrType)
 			
 			sql = """INSERT INTO aa_rr (secure, domain, ttl, addr)
 				VALUES (%s, %s, %s, %s)
@@ -279,7 +279,12 @@ class AParser(RRTypeParser):
 				finally:
 					conn.commit()
 				
+			meta = DnsMetadata(pkt, self.rrType)
 			meta.rrsigsStore(self.domain, conn)
+			
+			return rrs.rr_count()
+		
+		return 0
 
 class AAAAParser(AParser):
 	
@@ -297,7 +302,7 @@ class RSAKey(object):
 
 class DnskeyAlgo:
 	
-	algo_map = \
+	algoMap = \
 		{ 
 		     1: "RSA/MD5",
 		     5: "RSA/SHA-1",
@@ -306,7 +311,7 @@ class DnskeyAlgo:
 		    10: "RSA/SHA-512",
 		}
 	
-	algo_ids = algo_map.keys()
+	rsaAlgoIds = algoMap.keys()
 
 class DNSKEYParser(RRTypeParser):
 
@@ -320,10 +325,10 @@ class DNSKEYParser(RRTypeParser):
 		try:
 			result = RRTypeParser.fetch(self)
 			if not result:
-				return
+				return 0
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
-			return
+			return 0
 		
 		secure = validationToDbEnum(result)
 		if result.havedata:
@@ -345,15 +350,11 @@ class DNSKEYParser(RRTypeParser):
 					algo = rdfConvert(rr.rdf(2), "B")
 					pubkey = getRdfData(rr.rdf(3))
 					
-					#if algo not in DnskeyAlgo.algo_ids or proto != 3: #only RSA/x algorithms, must be DNSSEC protocol
-					#	logging.debug("Skipped key for domain %s - algorithm %s, proto %s, pubkey: %s", domain, algo, proto, hexlify(pubkey))
-					#	continue
-	
 					exponent = None
 					modulus = None
 					other_key = None
 					
-					if algo in DnskeyAlgo.algo_ids: #we have RSA key
+					if algo in DnskeyAlgo.rsaAlgoIds: #we have RSA key
 						
 						#RFC 2537/3110 exponent length encoding
 						exp_len0 = ord(pubkey[0])
@@ -380,6 +381,13 @@ class DNSKEYParser(RRTypeParser):
 					logging.exception("Failed to store DNSKEY RR %s", rr)
 				finally:
 					conn.commit()
+			
+			meta = DnsMetadata(pkt, self.rrType)
+			meta.rrsigsStore(self.domain, conn)
+			
+			return rrs.rr_count()
+			
+		return 0
 			
 	
 
