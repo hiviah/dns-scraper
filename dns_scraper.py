@@ -248,16 +248,18 @@ class A_Parser(RRType_Parser):
 			sql = """INSERT INTO aa_rr (secure, domain, ttl, addr)
 				VALUES (%s, %s, %s, %s)
 				"""
-			try:
-				for i in range(rrs.rr_count()):
+			for i in range(rrs.rr_count()):
+				try:
 					rr = rrs.rr(i)
 					addr = str(rr.a_address())
 					ttl = rr.ttl()
 					
 					sql_data = (secure, self.domain, ttl, addr)
 					cursor.execute(sql, sql_data)
-			finally:
-				conn.commit()
+				except:
+					logging.exception("Failed to store %s %s" % (rr.get_type_str(), rr))
+				finally:
+					conn.commit()
 				
 			meta.rrsigsStore(self.domain, conn)
 
