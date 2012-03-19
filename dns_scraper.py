@@ -249,8 +249,11 @@ class AParser(RRTypeParser):
 	def fetchAndStore(self, conn):
 		try:
 			r = RRTypeParser.fetch(self)
+			if not r:
+				return
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
+			return
 		
 		if r.havedata:
 			cursor = conn.cursor()
@@ -316,8 +319,11 @@ class DNSKEYParser(RRTypeParser):
 	def fetchAndStore(self, conn):
 		try:
 			result = RRTypeParser.fetch(self)
+			if not result:
+				return
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
+			return
 		
 		secure = validationToDbEnum(result)
 		if result.havedata:
@@ -411,7 +417,7 @@ class DnsScanThread(threading.Thread):
 					parser.fetchAndStore(conn)
 				except Exception:
 					logging.exception("Failed to scan domain %s with %s",
-						domain, parserClass.__class__.__name__)
+						domain, parserClass.__name__)
 				
 			self.task_queue.task_done()
 
