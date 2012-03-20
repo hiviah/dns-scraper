@@ -391,6 +391,38 @@ class DNSKEYParser(RRTypeParser):
 			
 	
 
+class StorageThread(threading.Thread):
+	"""Thread taking sql/sql_data from queue and executing it for storage in DB"""
+
+	def __init__(self, db, dbQueue):
+		"""Create storage thread.
+		
+		@param db: database connection pool, instance of db.DbPool
+		@param dbQueue: instance of Queue.Queue that stores (sql,
+		sql_data) tuples to be executed
+		"""
+		self.db = db
+		self.dbQueue = dbQueue
+		
+		threading.Thread.__init__(self)
+
+	def run(self):
+		conn = self.db.connection()
+		while True:
+			sqlTuple = self.dbQueue.get()
+			
+			try:
+				cursor = conn.cursor()
+				sql, sql_data = sqlTuple
+				cursor.execute(sql, sql_data)
+			except Exception:
+				logging.exception("Failed to execute `%s` with `%s`",
+					sql, sql_data)
+			finally:
+				conn.commit()
+				
+			self.dbQueue.task_done()
+
 class DnsScanThread(threading.Thread):
 
 	def __init__(self, task_queue, ta_file, rr_scanners, db, opts):
