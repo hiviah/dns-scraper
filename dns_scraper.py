@@ -150,15 +150,13 @@ class DnsMetadata(StorageQueueClient):
 	These are some things we need to parse from answer packet by ldns.
 	"""
 	
-	def __init__(self, pkt, rrType, dbQueue):
+	def __init__(self, pkt, dbQueue):
 		"""Fills self with parsed data from DNS answer.
 		
 		@param pkt: ldns_pkt DNS answer packet
-		@param rrType: RR type to use for RR selection
 		@param dbQueue: DB queue for passing to StorageThread
 		"""
 		self.pkt = pkt
-		self.rrType = rrType
 		
 		StorageQueueClient.__init__(self, dbQueue)
 		
@@ -167,9 +165,13 @@ class DnsMetadata(StorageQueueClient):
 		rrsigs = self.pkt.rr_list_by_type(RR_TYPE_RRSIG, section)
 		return rrsigs and [rrsigs.rr(i) for i in range(rrsigs.rr_count())] or []
 		
-	def rrsigsStore(self, domain, section=ldns.LDNS_SECTION_ANSWER):
+	def rrsigsStore(self, domain, rrType, section=ldns.LDNS_SECTION_ANSWER):
 		"""Store RRSIGs from from given section of this packet in DB.
 		Stores each RRSIG in separate transaction.
+		
+		@param domain: question domain
+		@param rrType: select RRSIGs for this RR type
+		@param section: section to look for RRSIGs
 		"""
 		rrsigs = self.rrsigs(section)
 		sql = """INSERT INTO rrsig_rr
@@ -183,6 +185,10 @@ class DnsMetadata(StorageQueueClient):
 		
 		for rr in rrsigs:
 			try:
+				type_covered = rdfConvert(rr.rrsig_typecovered(), "!H")
+				if type_covered != rrType:
+					continue
+				
 				ttl = rr.ttl()
 				algo = rdfConvert(rr.rrsig_algorithm(), "B")
 				labels = rdfConvert(rr.rrsig_labels(), "B")
@@ -193,21 +199,83 @@ class DnsMetadata(StorageQueueClient):
 				signer = str(rr.rrsig_signame()).rstrip(".")
 				signature = buffer(getRdfData(rr.rrsig_sig()))
 				
-				sql_data = (domain, ttl, self.rrType, algo, labels, orig_ttl, sig_expiration,
+				sql_data = (domain, ttl, rrType, algo, labels, orig_ttl, sig_expiration,
 					    sig_inception, keytag, signer, signature)
 				self.sqlExecute(sql, sql_data)
 			except:
-				logging.exception("Failed to store RRSIG %s" % rr)
+				logging.exception("Failed to parse RRSIG %s" % rr)
 		
 	def nsecs(self):
 		"""Return NSEC records from additional section"""
-		nsecs  = self.pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_ADDITIONAL)
+		nsecs  = self.pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_AUTHORITY)
 		return nsecs  and [nsecs.rr(i)  for i in range(nsecs.rr_count()) ] or []
 		
+	def nsecsStore(self, domain, result):
+		"""Store NSECs and their RRSIGs from this packet in DB.
+		
+		@param domain: domain from question
+		@param result: ub_result from whose return packet this object
+		was created
+		"""
+		nsecs = self.nsecs()
+		secure = validationToDbEnum(result)
+		rcode = result.rcode
+		
+		sql = """INSERT INTO nsec_rr
+			(secure, domain, ttl, rcode, next_domain, type_bitmap)
+			VALUES (%s, %s, %s, %s, %s, %s)
+		"""
+		
+		for rr in nsecs:
+			try:
+				ttl = rr.ttl()
+				next_domain = str(rr.rdf(0))
+				type_bitmap = getRdfData(rr.rdf(1))
+				
+				sql_data = (secure, domain, ttl, rcode,
+					next_domain, buffer(type_bitmap))
+				
+				self.sqlExecute(sql, sql_data)
+			except:
+				logging.exception("Failed to parse NSEC %s" % rr)
+		
+		self.rrsigsStore(domain, RR_TYPE_NSEC, ldns.LDNS_SECTION_AUTHORITY)
+	
 	def nsec3s(self):
 		"""Return NSEC3 records from additional section"""
-		nsec3s = self.pkt.rr_list_by_type(RR_TYPE_NSEC3, ldns.LDNS_SECTION_ADDITIONAL)
+		nsec3s = self.pkt.rr_list_by_type(RR_TYPE_NSEC3, ldns.LDNS_SECTION_AUTHORITY)
 		return nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
+		
+	def nsec3sStore(self, domain, result):
+		"""Store NSEC3s and their RRSIGs from this packet in DB.
+		
+		@param domain: domain from question
+		@param result: ub_result from whose return packet this object
+		was created
+		"""
+		nsec3s = self.nsec3s()
+		secure = validationToDbEnum(result)
+		rcode = result.rcode
+		
+		sql = """INSERT INTO nsec_rr
+			(secure, domain, ttl, rcode, next_domain, type_bitmap)
+			VALUES (%s, %s, %s, %s, %s, %s)
+		"""
+		
+		for rr in nsecs:
+			try:
+				ttl = rr.ttl()
+				next_domain = str(rr.rdf(0))
+				type_bitmap = str(rr.rdf(1))
+				
+				sql_data = (secure, domain, ttl, rcode,
+					next_domain, buffer(type_bitmap))
+				
+				self.sqlExecute(sql, sql_data)
+			except:
+				logging.exception("Failed to parse NSEC %s" % rr)
+		
+		self.rrsigsStore(domain, RR_TYPE_NSEC, ldns.LDNS_SECTION_AUTHORITY)
 		
 
 class RRTypeParser(StorageQueueClient):
@@ -258,6 +326,19 @@ class RRTypeParser(StorageQueueClient):
 		"""
 		raise NotImplementedError
 	
+	def storeDnssecData(self, pkt, result):
+		"""Store DNSSEC-related metadata - RRSIGs, NSECs, NSEC3s.
+		
+		@param pkt: reply ldns_packet
+		@param result: ub_result from which pkt was created
+		"""
+		meta = DnsMetadata(pkt, self.dbQueue)
+		if result.havedata:
+			meta.rrsigsStore(self.domain, self.rrType)
+		else:
+			meta.nsecsStore(self.domain, result)
+			#meta.nsec3sStore(self.domain, result)
+	
 
 class AParser(RRTypeParser):
 	
@@ -271,13 +352,15 @@ class AParser(RRTypeParser):
 			r = RRTypeParser.fetch(self)
 			if not r:
 				return 0
+			pkt = result2pkt(r)
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
 			return 0
 		
+		rrCount = 0
+		
 		if r.havedata:
 			secure = validationToDbEnum(r)
-			pkt = result2pkt(r)
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
@@ -295,12 +378,11 @@ class AParser(RRTypeParser):
 				except:
 					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
 				
-			meta = DnsMetadata(pkt, self.rrType, self.dbQueue)
-			meta.rrsigsStore(self.domain)
-			
-			return rrs.rr_count()
+			rrCount = rrs.rr_count()
 		
-		return 0
+		self.storeDnssecData(pkt, r)
+		
+		return rrCount
 
 class AAAAParser(AParser):
 	
@@ -334,13 +416,15 @@ class DNSKEYParser(RRTypeParser):
 			result = RRTypeParser.fetch(self)
 			if not result:
 				return 0
+			pkt = result2pkt(result)
 		except DnsError:
 			logging.exception("Fetching of %s failed" % self.domain)
 			return 0
 		
 		secure = validationToDbEnum(result)
+		rrCount = 0
+		
 		if result.havedata:
-			pkt = result2pkt(result)
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
 			sql = """INSERT INTO dnskey_rr
@@ -386,14 +470,12 @@ class DNSKEYParser(RRTypeParser):
 					self.sqlExecute(sql, sql_data)
 				except:
 					logging.exception("Failed to store DNSKEY RR %s", rr)
+				
+			rrCount = rrs.rr_count()
 			
-			meta = DnsMetadata(pkt, self.rrType, self.dbQueue)
-			meta.rrsigsStore(self.domain)
-			
-			return rrs.rr_count()
-			
-		return 0
-			
+		self.storeDnssecData(pkt, result)
+		
+		return rrCount
 	
 
 class StorageThread(threading.Thread):

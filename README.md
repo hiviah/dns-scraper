@@ -59,4 +59,10 @@ invocation will run the scanner:
 
     ./dns_scraper.py domains dns_scraper.config
 
+## Known bugs
+
+- sometimes libunbound's resolution can take really long time when encountering
+  SERVFAIL (up to 10 minute timeouts were observed for single RR)
+- some records may be duplicated in DB if they are present in multiple
+  responses (e.g. NSEC RRs)
 
