@@ -261,7 +261,7 @@ class DnsMetadata(StorageQueueClient):
 		sql = """INSERT INTO nsec3_rr
 			(secure, domain, owner, ttl, rcode, hash_algo, flags,
 			iterations, salt, next_owner, type_bitmap)
-			VALUES (%s, %s, %s, %s, %s, %s, %s
+			VALUES (%s, %s, %s, %s, %s, %s, %s,
 				%s, %s, %s, %s)
 		"""
 		
