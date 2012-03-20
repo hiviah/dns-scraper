@@ -42,10 +42,11 @@ Then create tables (in dns-scraper dir):
 
     psql dns_scraper < sql/001_create_tables.sql
 
-Make sure your user in DB has enough connections allowed - the scanner requires
-one DB connection per thread.
+Copy `dns_scraper.config.sample` to `dns_scraper.config`, set username/pass to DB.
 
-Copy dns_scraper.config.sample to dns_scraper.config, set username/pass to DB.
+Make sure your user in DB has enough connections allowed. Usually the single
+storage thread in sample config is enough (there is one DB connection per
+storage thread).
 
 ## Running scanner
 

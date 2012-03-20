@@ -21,3 +21,7 @@ retries = 3
 [log]
 logfile = dns_scraper.log
 loglevel = debug
+
+#storage_threads - number of concurrent threads to DB
+[processing]
+storage_threads = 1

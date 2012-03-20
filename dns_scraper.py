@@ -127,31 +127,51 @@ def rdfConvert(rdf, fmt, conv=lambda x: x):
 	return conv(struct.unpack(fmt, getRdfData(rdf))[0])
 		
 
-class DnsMetadata(object):
+class StorageQueueClient(object):
+	"""Client for storing data passing it through queue to StorageThread."""
+	
+	def __init__(self, dbQueue):
+		"""Initialize with queue to DB.
+		@param dbQueue: instance of Queue.Queue for passing (sql,
+		sql_data) to StorageThread
+		"""
+		self.dbQueue = dbQueue
+	
+	def sqlExecute(self, sql, sql_data):
+		"""Execute storage command later in StorageThread.
+		@param sql: sql query with %s "placeholders"
+		@param sql_data: data for placeholders
+		"""
+		self.dbQueue.put((sql, sql_data))
+
+
+class DnsMetadata(StorageQueueClient):
 	"""Represents DNS(SEC) metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
 	These are some things we need to parse from answer packet by ldns.
 	"""
 	
-	def __init__(self, pkt, rrType):
+	def __init__(self, pkt, rrType, dbQueue):
 		"""Fills self with parsed data from DNS answer.
 		
 		@param pkt: ldns_pkt DNS answer packet
 		@param rrType: RR type to use for RR selection
+		@param dbQueue: DB queue for passing to StorageThread
 		"""
 		self.pkt = pkt
 		self.rrType = rrType
+		
+		StorageQueueClient.__init__(self, dbQueue)
 		
 	def rrsigs(self, section=ldns.LDNS_SECTION_ANSWER):
 		"""Return RRSIGs from selected section"""
 		rrsigs = self.pkt.rr_list_by_type(RR_TYPE_RRSIG, section)
 		return rrsigs and [rrsigs.rr(i) for i in range(rrsigs.rr_count())] or []
 		
-	def rrsigsStore(self, domain, conn, section=ldns.LDNS_SECTION_ANSWER):
-		"""Store RRSIGs from from given section of this packet in DB
-		with connection conn. Stores each RRSIG in separate transaction.
+	def rrsigsStore(self, domain, section=ldns.LDNS_SECTION_ANSWER):
+		"""Store RRSIGs from from given section of this packet in DB.
+		Stores each RRSIG in separate transaction.
 		"""
 		rrsigs = self.rrsigs(section)
-		cursor = conn.cursor()
 		sql = """INSERT INTO rrsig_rr
 			(domain, ttl, rr_type, algo, labels, orig_ttl,
 			sig_expiration, sig_inception,
@@ -175,12 +195,9 @@ class DnsMetadata(object):
 				
 				sql_data = (domain, ttl, self.rrType, algo, labels, orig_ttl, sig_expiration,
 					    sig_inception, keytag, signer, signature)
-				cursor.execute(sql, sql_data)
-				
+				self.sqlExecute(sql, sql_data)
 			except:
 				logging.exception("Failed to store RRSIG %s" % rr)
-			finally:
-				conn.commit()
 		
 	def nsecs(self):
 		"""Return NSEC records from additional section"""
@@ -193,21 +210,24 @@ class DnsMetadata(object):
 		return nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
 		
 
-class RRTypeParser(object):
+class RRTypeParser(StorageQueueClient):
 	"""Abstract class for parsing and storing of all RR types."""
 	
 	rrType = 0 #undefined RR type
 	rrClass = RR_CLASS_IN
 	
-	def __init__(self, domain, resolver, opts):
+	def __init__(self, domain, resolver, opts, dbQueue):
 		"""Create instance.
 		@param domain: domain to scan for
 		@param resolver: ub_ctx to use for resolving
 		@param opts: instance of DnsConfigOptions
+		@param dbQueue: DB queue for passing to StorageThread
 		"""
 		self.domain = domain
 		self.resolver = resolver
 		self.opts = opts
+		
+		StorageQueueClient.__init__(self, dbQueue)
 	
 	def fetch(self):
 		"""Generic fetching of record that are not of special form like
@@ -232,9 +252,8 @@ class RRTypeParser(object):
 				self.domain, self.__class__.__name__)
 			return None
 		
-	def fetchAndStore(self, conn):
+	def fetchAndStore(self):
 		"""Scan records for the domain and store results in DB.
-		@param conn: database connection from DBPool.connection()
 		@return: number of records of given RR type found
 		"""
 		raise NotImplementedError
@@ -244,10 +263,10 @@ class AParser(RRTypeParser):
 	
 	rrType = RR_TYPE_A
 	
-	def __init__(self, domain, resolver, opts):
-		RRTypeParser.__init__(self, domain, resolver, opts)
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
 	
-	def fetchAndStore(self, conn):
+	def fetchAndStore(self):
 		try:
 			r = RRTypeParser.fetch(self)
 			if not r:
@@ -257,7 +276,6 @@ class AParser(RRTypeParser):
 			return 0
 		
 		if r.havedata:
-			cursor = conn.cursor()
 			secure = validationToDbEnum(r)
 			pkt = result2pkt(r)
 			
@@ -273,14 +291,12 @@ class AParser(RRTypeParser):
 					ttl = rr.ttl()
 					
 					sql_data = (secure, self.domain, ttl, addr)
-					cursor.execute(sql, sql_data)
+					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to store %s %s" % (rr.get_type_str(), rr))
-				finally:
-					conn.commit()
+					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
 				
-			meta = DnsMetadata(pkt, self.rrType)
-			meta.rrsigsStore(self.domain, conn)
+			meta = DnsMetadata(pkt, self.rrType, self.dbQueue)
+			meta.rrsigsStore(self.domain)
 			
 			return rrs.rr_count()
 		
@@ -291,14 +307,6 @@ class AAAAParser(AParser):
 	rrType = RR_TYPE_AAAA
 	
 	
-class RSAKey(object):
-
-	def __init__(self, exponent, modulus, digest_algo, key_purpose):
-		self.exponent = exponent
-		self.modulus = modulus
-		self.digest_algo = digest_algo
-		self.key_purpose = key_purpose
-
 
 class DnskeyAlgo:
 	
@@ -318,10 +326,10 @@ class DNSKEYParser(RRTypeParser):
 	rrType = RR_TYPE_DNSKEY
 	maxDbExp = 9223372036854775807 #maximum exponent that fits in dnskey_rr.rsa_exp field
 	
-	def __init__(self, domain, resolver, opts):
-		RRTypeParser.__init__(self, domain, resolver, opts)
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
 	
-	def fetchAndStore(self, conn):
+	def fetchAndStore(self):
 		try:
 			result = RRTypeParser.fetch(self)
 			if not result:
@@ -332,7 +340,6 @@ class DNSKEYParser(RRTypeParser):
 		
 		secure = validationToDbEnum(result)
 		if result.havedata:
-			cursor = conn.cursor()
 			pkt = result2pkt(result)
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
@@ -376,14 +383,12 @@ class DNSKEYParser(RRTypeParser):
 						other_key = buffer(pubkey)
 					
 					sql_data = (secure, self.domain, ttl, flags, proto, algo, exponent, modulus, other_key)
-					cursor.execute(sql, sql_data)
+					self.sqlExecute(sql, sql_data)
 				except:
 					logging.exception("Failed to store DNSKEY RR %s", rr)
-				finally:
-					conn.commit()
 			
-			meta = DnsMetadata(pkt, self.rrType)
-			meta.rrsigsStore(self.domain, conn)
+			meta = DnsMetadata(pkt, self.rrType, self.dbQueue)
+			meta.rrsigsStore(self.domain)
 			
 			return rrs.rr_count()
 			
@@ -425,18 +430,18 @@ class StorageThread(threading.Thread):
 
 class DnsScanThread(threading.Thread):
 
-	def __init__(self, task_queue, ta_file, rr_scanners, db, opts):
+	def __init__(self, task_queue, ta_file, rr_scanners, dbQueue, opts):
 		"""Create scanning thread.
 		
 		@param task_queue: Queue.Queue containing domains to scan as strings
 		@param ta_file: trust anchor file for libunbound
 		@param rr_scanners: list of subclasses of RRTypeParser to use for scan
-		@param db: database connection pool, instance of db.DbPool
+		@param dbQueue: Queue.Queue for passing things to store to StorageThread
 		@param opts: instance of DnsConfigOptions
 		"""
 		self.task_queue = task_queue
 		self.rr_scanners = rr_scanners
-		self.db = db
+		self.dbQueue = dbQueue
 		self.opts = opts
 		
 		threading.Thread.__init__(self)
@@ -447,14 +452,13 @@ class DnsScanThread(threading.Thread):
 		self.resolver.add_ta_file(ta_file) #read public keys for DNSSEC verification
 
 	def run(self):
-		conn = self.db.connection()
 		while True:
 			domain = self.task_queue.get()
 			
 			for parserClass in self.rr_scanners:
 				try:
-					parser = parserClass(domain, self.resolver, self.opts)
-					parser.fetchAndStore(conn)
+					parser = parserClass(domain, self.resolver, self.opts, self.dbQueue)
+					parser.fetchAndStore()
 				except Exception:
 					logging.exception("Failed to scan domain %s with %s",
 						domain, parserClass.__name__)
@@ -490,8 +494,9 @@ if __name__ == '__main__':
 	if opts.unboundConfig:
 		ub_ctx_config(opts.unboundConfig)
 	
-	#one DB connection per thread required
-	db = DbPool(scraperConfig, max_connections=thread_count)
+	#one DB connection per storage thread
+	storageThreads = scraperConfig.getint("processing", "storage_threads")
+	db = DbPool(scraperConfig, max_connections=storageThreads)
 	
 	logfile = scraperConfig.get("log", "logfile")
 	loglevel = convertLoglevel(scraperConfig.get("log", "loglevel"))
@@ -505,11 +510,17 @@ if __name__ == '__main__':
 	#logging.info("Unbound version: %s", ub_version())
 	
 	task_queue = Queue.Queue(5000)
+	dbQueue = Queue.Queue(500)
 	
 	parsers = [AParser, AAAAParser, DNSKEYParser]
 	
 	for i in range(thread_count):
-		t = DnsScanThread(task_queue, ta_file, parsers, db, opts)
+		t = DnsScanThread(task_queue, ta_file, parsers, dbQueue, opts)
+		t.setDaemon(True)
+		t.start()
+	
+	for i in range(storageThreads):
+		t = StorageThread(db, dbQueue)
 		t.setDaemon(True)
 		t.start()
 	
@@ -522,5 +533,8 @@ if __name__ == '__main__':
 		domain_count += 1
 		
 	task_queue.join()
+	
+	logging.info("Waiting for storage threads to finish")
+	dbQueue.join()
 	
 	logging.info("Fetch of dnskeys for %d domains took %.2f seconds", domain_count, time.time() - start_time)
