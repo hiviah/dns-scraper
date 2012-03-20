@@ -10,11 +10,12 @@ dbname = dns_scraper
 
 #unbound_config - fine-tuned configuration for libunbound (optional)
 #forwarder - if you want to use forwarder recursive DNS server (optional)
+#  Note that with forwarer you will get TTLs depending on forwarder's cache state.
 #retries - number of retries on SERVFAIL
 [dns]
 #unbound_config = unbound.config
 #forwarder = 127.0.0.1
-retries = 3
+retries = 1
 
 #logfile - logging/debug stuff gets dumped here, use "-" for stderr (without quotes)
 #loglevel - one of debug, info, warning, error, fatal
