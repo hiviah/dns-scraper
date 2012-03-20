@@ -1,6 +1,10 @@
 DROP TABLE IF EXISTS aa_rr;
 DROP TABLE IF EXISTS dnskey_rr;
+
+DROP TABLE IF EXISTS nsec_rr;
+DROP TABLE IF EXISTS nsec3_rr;
 DROP TABLE IF EXISTS rrsig_rr;
+
 DROP TYPE  IF EXISTS validation_result;
 
 CREATE TYPE validation_result AS ENUM ('insecure', 'secure', 'bogus');
@@ -49,4 +53,36 @@ CREATE TABLE dnskey_rr (
 );
 
 CREATE INDEX dnskey_rr_domain_algo_idx ON dnskey_rr (domain, algo);
+
+-- Table for NSEC records
+CREATE TABLE nsec_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    rcode SMALLINT NOT NULL,
+    next_domain VARCHAR(255) NOT NULL,
+    type_bitmap BYTEA NOT NULL
+);
+
+CREATE INDEX nsec_rr_domain_idx ON nsec_rr (domain);
+
+-- Table for NSEC3 records
+CREATE TABLE nsec3_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    rcode SMALLINT NOT NULL,
+    hash_algo SMALLINT NOT NULL,
+    flags SMALLINT NOT NULL,
+    iterations INTEGER NOT NULL,
+    salt BYTEA NOT NULL,
+    hash_domain VARCHAR(255) NOT NULL,
+    type_bitmap BYTEA NOT NULL
+);
+
+CREATE INDEX nsec3_rr_domain_idx ON nsec3_rr (domain);
+
+
 
