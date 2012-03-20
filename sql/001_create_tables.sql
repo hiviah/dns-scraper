@@ -59,6 +59,7 @@ CREATE TABLE nsec_rr (
     id SERIAL PRIMARY KEY,
     secure validation_result,
     domain VARCHAR(255) NOT NULL,
+    owner VARCHAR(255) NOT NULL,
     ttl INTEGER NOT NULL,
     rcode SMALLINT NOT NULL,
     next_domain VARCHAR(255) NOT NULL,
@@ -72,13 +73,14 @@ CREATE TABLE nsec3_rr (
     id SERIAL PRIMARY KEY,
     secure validation_result,
     domain VARCHAR(255) NOT NULL,
+    owner VARCHAR(255) NOT NULL,
     ttl INTEGER NOT NULL,
     rcode SMALLINT NOT NULL,
     hash_algo SMALLINT NOT NULL,
     flags SMALLINT NOT NULL,
     iterations INTEGER NOT NULL,
     salt BYTEA NOT NULL,
-    hash_domain VARCHAR(255) NOT NULL,
+    next_owner VARCHAR(255) NOT NULL,
     type_bitmap BYTEA NOT NULL
 );
 

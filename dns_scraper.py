@@ -222,17 +222,18 @@ class DnsMetadata(StorageQueueClient):
 		rcode = result.rcode
 		
 		sql = """INSERT INTO nsec_rr
-			(secure, domain, ttl, rcode, next_domain, type_bitmap)
-			VALUES (%s, %s, %s, %s, %s, %s)
+			(secure, domain, owner, ttl, rcode, next_domain, type_bitmap)
+			VALUES (%s, %s, %s, %s, %s, %s, %s)
 		"""
 		
 		for rr in nsecs:
 			try:
 				ttl = rr.ttl()
+				owner = str(rr.owner()).lower()
 				next_domain = str(rr.rdf(0))
 				type_bitmap = getRdfData(rr.rdf(1))
 				
-				sql_data = (secure, domain, ttl, rcode,
+				sql_data = (secure, domain, owner, ttl, rcode,
 					next_domain, buffer(type_bitmap))
 				
 				self.sqlExecute(sql, sql_data)
@@ -257,25 +258,45 @@ class DnsMetadata(StorageQueueClient):
 		secure = validationToDbEnum(result)
 		rcode = result.rcode
 		
-		sql = """INSERT INTO nsec_rr
-			(secure, domain, ttl, rcode, next_domain, type_bitmap)
-			VALUES (%s, %s, %s, %s, %s, %s)
+		sql = """INSERT INTO nsec3_rr
+			(secure, domain, owner, ttl, rcode, hash_algo, flags,
+			iterations, salt, next_owner, type_bitmap)
+			VALUES (%s, %s, %s, %s, %s, %s, %s
+				%s, %s, %s, %s)
 		"""
 		
-		for rr in nsecs:
+		for rr in nsec3s:
 			try:
 				ttl = rr.ttl()
-				next_domain = str(rr.rdf(0))
-				type_bitmap = str(rr.rdf(1))
+				owner = str(rr.owner()).lower()
+				hash_algo = ldns.ldns_nsec3_algorithm(rr)
+				flags = ldns.ldns_nsec3_flags(rr)
+				iterations = ldns.ldns_nsec3_iterations(rr)
+				salt = getRdfData(ldns.ldns_nsec3_salt(rr))
+				next_owner = str(ldns.ldns_nsec3_next_owner(rr))
+				type_bitmap = getRdfData(ldns.ldns_nsec3_bitmap(rr))
 				
-				sql_data = (secure, domain, ttl, rcode,
-					next_domain, buffer(type_bitmap))
+				if len(salt) < 1:
+					logging.warn("Short NSEC3 salt for %s: %s",
+						domain, rr)
+				else:
+					#for some obscure reason, ldns_nsec3_salt()
+					#has first byte of salt as length
+					saltLen = ord(salt[0])
+					salt = salt[1:]
+					if saltLen != len(salt):
+						logging.warn("NSEC3 salt length mismatch for %s, %d != %d: %s",
+							domain, saltLen, len(salt), rr)
+				
+				sql_data = (secure, domain, owner, ttl, rcode,
+					hash_algo, flags, iterations, buffer(salt),
+					next_owner, buffer(type_bitmap))
 				
 				self.sqlExecute(sql, sql_data)
 			except:
-				logging.exception("Failed to parse NSEC %s" % rr)
+				logging.exception("Failed to parse NSEC3 %s" % rr)
 		
-		self.rrsigsStore(domain, RR_TYPE_NSEC, ldns.LDNS_SECTION_AUTHORITY)
+		self.rrsigsStore(domain, RR_TYPE_NSEC3, ldns.LDNS_SECTION_AUTHORITY)
 		
 
 class RRTypeParser(StorageQueueClient):
@@ -337,7 +358,7 @@ class RRTypeParser(StorageQueueClient):
 			meta.rrsigsStore(self.domain, self.rrType)
 		else:
 			meta.nsecsStore(self.domain, result)
-			#meta.nsec3sStore(self.domain, result)
+			meta.nsec3sStore(self.domain, result)
 	
 
 class AParser(RRTypeParser):
