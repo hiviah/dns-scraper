@@ -12,10 +12,13 @@ dbname = dns_scraper
 #forwarder - if you want to use forwarder recursive DNS server (optional)
 #  Note that with forwarer you will get TTLs depending on forwarder's cache state.
 #retries - number of retries on SERVFAIL
+#ta_file - trust anchor file for DNSSEC validation, same format as
+#  ub_ctx.add_ta_file() accepts
 [dns]
 #unbound_config = unbound.config
 #forwarder = 127.0.0.1
 retries = 1
+ta_file = keys
 
 #logfile - logging/debug stuff gets dumped here, use "-" for stderr (without quotes)
 #loglevel - one of debug, info, warning, error, fatal
@@ -23,6 +26,8 @@ retries = 1
 logfile = dns_scraper.log
 loglevel = debug
 
+#scan_threads - number of threads doing DNS queries
 #storage_threads - number of concurrent threads to DB
 [processing]
+scan_threads = 20
 storage_threads = 1

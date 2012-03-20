@@ -430,17 +430,17 @@ class StorageThread(threading.Thread):
 
 class DnsScanThread(threading.Thread):
 
-	def __init__(self, task_queue, ta_file, rr_scanners, dbQueue, opts):
+	def __init__(self, taskQueue, taFile, rrScanners, dbQueue, opts):
 		"""Create scanning thread.
 		
-		@param task_queue: Queue.Queue containing domains to scan as strings
-		@param ta_file: trust anchor file for libunbound
-		@param rr_scanners: list of subclasses of RRTypeParser to use for scan
+		@param taskQueue: Queue.Queue containing domains to scan as strings
+		@param taFile: trust anchor file for libunbound
+		@param rrScanners: list of subclasses of RRTypeParser to use for scan
 		@param dbQueue: Queue.Queue for passing things to store to StorageThread
 		@param opts: instance of DnsConfigOptions
 		"""
-		self.task_queue = task_queue
-		self.rr_scanners = rr_scanners
+		self.taskQueue = taskQueue
+		self.rrScanners = rrScanners
 		self.dbQueue = dbQueue
 		self.opts = opts
 		
@@ -449,13 +449,13 @@ class DnsScanThread(threading.Thread):
 		self.resolver = ub_ctx()
 		if opts.forwarder:
 			self.resolver.set_fwd(opts.forwarder)
-		self.resolver.add_ta_file(ta_file) #read public keys for DNSSEC verification
+		self.resolver.add_ta_file(taFile) #read public keys for DNSSEC verification
 
 	def run(self):
 		while True:
-			domain = self.task_queue.get()
+			domain = self.taskQueue.get()
 			
-			for parserClass in self.rr_scanners:
+			for parserClass in self.rrScanners:
 				try:
 					parser = parserClass(domain, self.resolver, self.opts, self.dbQueue)
 					parser.fetchAndStore()
@@ -463,7 +463,7 @@ class DnsScanThread(threading.Thread):
 					logging.exception("Failed to scan domain %s with %s",
 						domain, parserClass.__name__)
 				
-			self.task_queue.task_done()
+			self.taskQueue.task_done()
 
 
 def convertLoglevel(levelString):
@@ -479,17 +479,19 @@ def convertLoglevel(levelString):
 
 
 if __name__ == '__main__':
-	if len(sys.argv) != 5: 
-		print >> sys.stderr, "ERROR: usage: <domain_file> <ta_file> <thread_count> <scraper_config>" 
+	if len(sys.argv) != 3: 
+		print >> sys.stderr, "ERROR: usage: <domain_file> <scraper_config>" 
 		sys.exit(1)
 		
-	domain_file = file(sys.argv[1])
-	ta_file = sys.argv[2]
-	thread_count = int(sys.argv[3])
+	domainFilename = sys.argv[1]
+	domainFile = file(domainFilename)
 	scraperConfig = SafeConfigParser()
-	scraperConfig.read(sys.argv[4])
+	scraperConfig.read(sys.argv[2])
+	
+	threadCount = scraperConfig.getint("processing", "scan_threads")
 	
 	#DNS resolution options
+	taFile = scraperConfig.get("dns", "ta_file")
 	opts = DnsConfigOptions(scraperConfig)
 	if opts.unboundConfig:
 		ub_ctx_config(opts.unboundConfig)
@@ -508,14 +510,15 @@ if __name__ == '__main__':
 			format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
 	
 	#logging.info("Unbound version: %s", ub_version())
+	logging.info("Starting scan of domains in file %s using %d threads.", domainFilename, threadCount)
 	
-	task_queue = Queue.Queue(5000)
+	taskQueue = Queue.Queue(5000)
 	dbQueue = Queue.Queue(500)
 	
 	parsers = [AParser, AAAAParser, DNSKEYParser]
 	
-	for i in range(thread_count):
-		t = DnsScanThread(task_queue, ta_file, parsers, dbQueue, opts)
+	for i in range(threadCount):
+		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts)
 		t.setDaemon(True)
 		t.start()
 	
@@ -524,17 +527,17 @@ if __name__ == '__main__':
 		t.setDaemon(True)
 		t.start()
 	
-	start_time = time.time()
-	domain_count = 0
+	startTime = time.time()
+	domainCount = 0
 	
-	for line in domain_file:
+	for line in domainFile:
 		domain = line.rstrip()
-		task_queue.put(domain)
-		domain_count += 1
+		taskQueue.put(domain)
+		domainCount += 1
 		
-	task_queue.join()
+	taskQueue.join()
 	
 	logging.info("Waiting for storage threads to finish")
 	dbQueue.join()
 	
-	logging.info("Fetch of dnskeys for %d domains took %.2f seconds", domain_count, time.time() - start_time)
+	logging.info("Fetch of dnskeys for %d domains took %.2f seconds", domainCount, time.time() - startTime)

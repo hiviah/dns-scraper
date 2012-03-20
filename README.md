@@ -50,13 +50,13 @@ storage thread).
 
 ## Running scanner
 
-Create file with trust anchors (same format as ub_ctx.add_ta_file uses), let's
+Create file with trust anchors (same format as `ub_ctx.add_ta_file` uses), let's
 name it "keys". These trust anchors are used when determining DNSSEC validation
-state.
+state. In the config file, there's `ta_file` option under `dns` section for it.
 
 Assuming you have your domains in "domains" file (one per line), following
-invocation will run the scanner in 10 threads:
+invocation will run the scanner:
 
-    ./dns_scraper.py domains keys 10 dns_scraper.config
+    ./dns_scraper.py domains dns_scraper.config
 
 
