@@ -477,12 +477,22 @@ class DNSKEYParser(RRTypeParser):
 							exp_len = ord(pubkey[1]) << 8 + ord(pubkey[2])
 							exp_hdr_len = 3
 		
-						exponent = int(hexlify(pubkey[exp_hdr_len:exp_hdr_len + exp_len]), 16)
+						exponentBin = pubkey[exp_hdr_len:exp_hdr_len + exp_len]
+						if len(exponentBin) > 0 and exponentBin[0] == '\0':
+								logging.warn("Leading zero in exponent for %s: %s",
+									self.domain, hexlify(exponentBin))
+							
+						exponent = int(hexlify(exponentBin), 16)
 						if exponent > self.maxDbExp: #needs to fit into DB field
 							other_key = buffer(pubkey)
 							exponent = -1
 						else:
-							modulus  = buffer(pubkey[exp_hdr_len + exp_len:].lstrip('\0'))
+							modulus  = pubkey[exp_hdr_len + exp_len:]
+							if len(modulus) > 0 and modulus[0] == '\0':
+								logging.warn("Leading zero in modulus for %s: %s",
+									self.domain, hexlify(modulus))
+								modulus = modulus.lstrip('\0')
+							modulus = buffer(modulus)
 						
 					else: #not a RSA key
 						other_key = buffer(pubkey)
