@@ -213,7 +213,7 @@ class DnsMetadata(StorageQueueClient):
 			for i in range(8):
 				isset = (value << i) & 0x80
 				if isset:
-					bitpos = (256 * windowNum) + (8 * charPos) + i
+					bitpos = (windowNum << 8) + (charPos << 3) + i
 					rrTypeList.append(bitpos)
 		return rrTypeList
 		
@@ -243,7 +243,7 @@ class DnsMetadata(StorageQueueClient):
 			
 		
 	def nsecs(self):
-		"""Return NSEC records from additional section"""
+		"""Return NSEC records from authority section"""
 		nsecs  = self.pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_AUTHORITY)
 		return nsecs  and [nsecs.rr(i)  for i in range(nsecs.rr_count()) ] or []
 		
@@ -280,7 +280,7 @@ class DnsMetadata(StorageQueueClient):
 		self.rrsigsStore(domain, RR_TYPE_NSEC, ldns.LDNS_SECTION_AUTHORITY)
 	
 	def nsec3s(self):
-		"""Return NSEC3 records from additional section"""
+		"""Return NSEC3 records from authority section"""
 		nsec3s = self.pkt.rr_list_by_type(RR_TYPE_NSEC3, ldns.LDNS_SECTION_AUTHORITY)
 		return nsec3s and [nsec3s.rr(i) for i in range(nsec3s.rr_count())] or []
 		
