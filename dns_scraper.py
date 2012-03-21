@@ -597,6 +597,52 @@ class DNSKEYParser(RRTypeParser):
 		return rrCount
 	
 
+class DSParser(RRTypeParser):
+	
+	rrType = RR_TYPE_DS
+	
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	
+	def fetchAndStore(self):
+		(r, pkt) = self.fetchAndParse()
+		if not r:
+			return 0
+		
+		rrCount = 0
+		
+		if r.havedata:
+			secure = validationToDbEnum(r)
+			
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
+			
+			sql = """INSERT INTO ds_rr (secure, domain, ttl, keytag,
+					algo, digest_type, digest)
+				VALUES (%s, %s, %s, %s,
+					%s, %s, %s)
+				"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					ttl = rr.ttl()
+					keytag = rdfConvert(rr.rdf(0), "!H")
+					algo = rdfConvert(rr.rdf(1), "B")
+					digest_type = rdfConvert(rr.rdf(2), "B")
+					digest = getRdfData(rr.rdf(3))
+					
+					sql_data = (secure, self.domain, ttl, keytag,
+						algo, digest_type, buffer(digest))
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+				
+			rrCount = rrs.rr_count()
+		
+		self.storeDnssecData(pkt, r)
+		
+		return rrCount
+
+
 class StorageThread(threading.Thread):
 	"""Thread taking sql/sql_data from queue and executing it for storage in DB"""
 
@@ -637,7 +683,7 @@ class DnsScanThread(threading.Thread):
 		@param taskQueue: Queue.Queue containing domains to scan as strings
 		@param taFile: trust anchor file for libunbound
 		@param rrScanners: list of subclasses of RRTypeParser to use for scan.
-		NSParser is always on and shouldn't be present in the list.
+		NSParser and DSParser are always on and shouldn't be present in the list.
 		@param dbQueue: Queue.Queue for passing things to store to StorageThread
 		@param opts: instance of DnsConfigOptions
 		"""
@@ -661,6 +707,10 @@ class DnsScanThread(threading.Thread):
 			try:
 				nsParser = NSParser(domain, self.resolver, self.opts, self.dbQueue)
 				nsRRcount = nsParser.fetchAndStore()
+				
+				#DS RRs are in parent zone
+				dsParser = DSParser(domain, self.resolver, self.opts, self.dbQueue)
+				dsParser.fetchAndStore()
 				
 				#skip other scanners depended on existence of NS records
 				if nsRRcount > 0:

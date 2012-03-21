@@ -1,6 +1,7 @@
 DROP TABLE IF EXISTS aa_rr;
 DROP TABLE IF EXISTS dnskey_rr;
 DROP TABLE IF EXISTS ns_rr;
+DROP TABLE IF EXISTS ds_rr;
 
 DROP TABLE IF EXISTS nsec_rr;
 DROP TABLE IF EXISTS nsec3_rr;
@@ -99,6 +100,20 @@ CREATE TABLE ns_rr (
 );
 
 CREATE INDEX ns_rr_domain_idx ON ns_rr (domain);
+
+-- Table for DS records
+CREATE TABLE ds_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    keytag INTEGER NOT NULL,
+    algo SMALLINT NOT NULL,
+    digest_type SMALLINT NOT NULL,
+    digest BYTEA NOT NULL
+);
+
+CREATE INDEX ds_rr_domain_idx ON ds_rr (domain);
 
 
 
