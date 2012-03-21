@@ -207,6 +207,9 @@ class DnsMetadata(StorageQueueClient):
 		
 	@staticmethod
 	def decodeNsecBitmapWindow(windowNum, bitmap):
+		"""Decode one window of NSEC/NSEC3 bitmap and return list of
+		covered RR types as integers.
+		"""
 		rrTypeList = []
 		for (charPos, c) in enumerate(bitmap):
 			value = ord(c)
