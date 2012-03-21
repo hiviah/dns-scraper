@@ -222,8 +222,8 @@ class DnsMetadata(StorageQueueClient):
 		rcode = result.rcode
 		
 		sql = """INSERT INTO nsec_rr
-			(secure, domain, owner, ttl, rcode, next_domain, type_bitmap)
-			VALUES (%s, %s, %s, %s, %s, %s, %s)
+			(secure, domain, rr_type, owner, ttl, rcode, next_domain, type_bitmap)
+			VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 		"""
 		
 		for rr in nsecs:
@@ -233,7 +233,7 @@ class DnsMetadata(StorageQueueClient):
 				next_domain = str(rr.rdf(0))
 				type_bitmap = getRdfData(rr.rdf(1))
 				
-				sql_data = (secure, domain, owner, ttl, rcode,
+				sql_data = (secure, domain, result.qtype, owner, ttl, rcode,
 					next_domain, buffer(type_bitmap))
 				
 				self.sqlExecute(sql, sql_data)
@@ -259,9 +259,9 @@ class DnsMetadata(StorageQueueClient):
 		rcode = result.rcode
 		
 		sql = """INSERT INTO nsec3_rr
-			(secure, domain, owner, ttl, rcode, hash_algo, flags,
+			(secure, domain, rr_type, owner, ttl, rcode, hash_algo, flags,
 			iterations, salt, next_owner, type_bitmap)
-			VALUES (%s, %s, %s, %s, %s, %s, %s,
+			VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
 				%s, %s, %s, %s)
 		"""
 		
@@ -288,7 +288,7 @@ class DnsMetadata(StorageQueueClient):
 						logging.warn("NSEC3 salt length mismatch for %s, %d != %d: %s",
 							domain, saltLen, len(salt), rr)
 				
-				sql_data = (secure, domain, owner, ttl, rcode,
+				sql_data = (secure, domain, result.qtype, owner, ttl, rcode,
 					hash_algo, flags, iterations, buffer(salt),
 					next_owner, buffer(type_bitmap))
 				

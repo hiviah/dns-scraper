@@ -59,6 +59,7 @@ CREATE TABLE nsec_rr (
     id SERIAL PRIMARY KEY,
     secure validation_result,
     domain VARCHAR(255) NOT NULL,
+    rr_type INTEGER NOT NULL, -- RR type that was used in question
     owner VARCHAR(255) NOT NULL,
     ttl INTEGER NOT NULL,
     rcode SMALLINT NOT NULL,
@@ -66,13 +67,14 @@ CREATE TABLE nsec_rr (
     type_bitmap BYTEA NOT NULL
 );
 
-CREATE INDEX nsec_rr_domain_idx ON nsec_rr (domain);
+CREATE INDEX nsec_rr_domain_idx ON nsec_rr (domain, rr_type);
 
 -- Table for NSEC3 records
 CREATE TABLE nsec3_rr (
     id SERIAL PRIMARY KEY,
     secure validation_result,
     domain VARCHAR(255) NOT NULL,
+    rr_type INTEGER NOT NULL, -- RR type that was used in question
     owner VARCHAR(255) NOT NULL,
     ttl INTEGER NOT NULL,
     rcode SMALLINT NOT NULL,
@@ -84,7 +86,7 @@ CREATE TABLE nsec3_rr (
     type_bitmap BYTEA NOT NULL
 );
 
-CREATE INDEX nsec3_rr_domain_idx ON nsec3_rr (domain);
+CREATE INDEX nsec3_rr_domain_idx ON nsec3_rr (domain, rr_type);
 
 
 
