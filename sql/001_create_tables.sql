@@ -64,7 +64,7 @@ CREATE TABLE nsec_rr (
     ttl INTEGER NOT NULL,
     rcode SMALLINT NOT NULL,
     next_domain VARCHAR(255) NOT NULL,
-    type_bitmap BYTEA NOT NULL
+    type_bitmap INTEGER[] NOT NULL
 );
 
 CREATE INDEX nsec_rr_domain_idx ON nsec_rr (domain, rr_type);
@@ -83,7 +83,7 @@ CREATE TABLE nsec3_rr (
     iterations INTEGER NOT NULL,
     salt BYTEA NOT NULL,
     next_owner VARCHAR(255) NOT NULL,
-    type_bitmap BYTEA NOT NULL
+    type_bitmap INTEGER[] NOT NULL
 );
 
 CREATE INDEX nsec3_rr_domain_idx ON nsec3_rr (domain, rr_type);

@@ -205,6 +205,43 @@ class DnsMetadata(StorageQueueClient):
 			except:
 				logging.exception("Failed to parse RRSIG %s" % rr)
 		
+	@staticmethod
+	def decodeNsecBitmapWindow(windowNum, bitmap):
+		rrTypeList = []
+		for (charPos, c) in enumerate(bitmap):
+			value = ord(c)
+			for i in range(8):
+				isset = (value << i) & 0x80
+				if isset:
+					bitpos = (256 * windowNum) + (8 * charPos) + i
+					rrTypeList.append(bitpos)
+		return rrTypeList
+		
+	@staticmethod
+	def nsecBitmapCoveredTypes(bitmap):
+		"""Returns list of RR integers that are covered by NSEC/NSEC3 bitmap.
+		
+		@param bitmap: bitmap as binary string
+		@throws DnsError: if bitmap is malformed
+		"""
+		pos = 0
+		coveredTypes = []
+		try:
+			while pos < len(bitmap):
+				windowNum = ord(bitmap[pos])
+				bitmapLen = ord(bitmap[pos+1])
+				pos += 2
+			
+				coveredTypes.extend(DnsMetadata.decodeNsecBitmapWindow(
+					windowNum, bitmap[pos:pos+bitmapLen]))
+				
+				pos += bitmapLen
+					
+			return coveredTypes
+		except IndexError:
+			raise DnsError("Malformed NSEC/NSEC3 bitmap: %s", hexlify(bitmap))
+			
+		
 	def nsecs(self):
 		"""Return NSEC records from additional section"""
 		nsecs  = self.pkt.rr_list_by_type(RR_TYPE_NSEC,  ldns.LDNS_SECTION_AUTHORITY)
@@ -231,10 +268,10 @@ class DnsMetadata(StorageQueueClient):
 				ttl = rr.ttl()
 				owner = str(rr.owner()).lower()
 				next_domain = str(rr.rdf(0))
-				type_bitmap = getRdfData(rr.rdf(1))
+				type_bitmap = self.nsecBitmapCoveredTypes(getRdfData(rr.rdf(1)))
 				
 				sql_data = (secure, domain, result.qtype, owner, ttl, rcode,
-					next_domain, buffer(type_bitmap))
+					next_domain, type_bitmap)
 				
 				self.sqlExecute(sql, sql_data)
 			except:
@@ -274,7 +311,7 @@ class DnsMetadata(StorageQueueClient):
 				iterations = ldns.ldns_nsec3_iterations(rr)
 				salt = getRdfData(ldns.ldns_nsec3_salt(rr))
 				next_owner = str(ldns.ldns_nsec3_next_owner(rr))
-				type_bitmap = getRdfData(ldns.ldns_nsec3_bitmap(rr))
+				type_bitmap = self.nsecBitmapCoveredTypes(getRdfData(ldns.ldns_nsec3_bitmap(rr)))
 				
 				if len(salt) < 1:
 					logging.warn("Short NSEC3 salt for %s: %s",
@@ -290,7 +327,7 @@ class DnsMetadata(StorageQueueClient):
 				
 				sql_data = (secure, domain, result.qtype, owner, ttl, rcode,
 					hash_algo, flags, iterations, buffer(salt),
-					next_owner, buffer(type_bitmap))
+					next_owner, type_bitmap)
 				
 				self.sqlExecute(sql, sql_data)
 			except:
