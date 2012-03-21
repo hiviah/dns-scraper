@@ -380,6 +380,25 @@ class RRTypeParser(StorageQueueClient):
 		logging.warn("Permanent SERVFAIL: domain %s type %s", \
 			self.domain, self.__class__.__name__)
 		return None
+	
+	def fetchAndParse(self):
+		"""Fetch the RRs and return result with parsed ldns_pkt.
+		
+		@returns: tuple (ub_result, ldns_pkt) or (None, None) on SERVFAIL
+		or packet parsing error
+		"""
+		try:
+			result = RRTypeParser.fetch(self)
+			
+			if not result:
+				return (None, None)
+			
+			pkt = result2pkt(result)
+			return (result, pkt)
+		except DnsError:
+			logging.exception("Fetching of RR type %d for %s failed",
+				self.rrType, self.domain)
+			return (None, None)
 		
 	def fetchAndStore(self):
 		"""Scan records for the domain and store results in DB.
@@ -409,13 +428,8 @@ class AParser(RRTypeParser):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
 	
 	def fetchAndStore(self):
-		try:
-			r = RRTypeParser.fetch(self)
-			if not r:
-				return 0
-			pkt = result2pkt(r)
-		except DnsError:
-			logging.exception("Fetching of %s failed" % self.domain)
+		(r, pkt) = self.fetchAndParse()
+		if not r:
 			return 0
 		
 		rrCount = 0
@@ -449,6 +463,45 @@ class AAAAParser(AParser):
 	
 	rrType = RR_TYPE_AAAA
 	
+class NSParser(RRTypeParser):
+	
+	rrType = RR_TYPE_NS
+	
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	
+	def fetchAndStore(self):
+		(r, pkt) = self.fetchAndParse()
+		if not r:
+			return 0
+		
+		rrCount = 0
+		
+		if r.havedata:
+			secure = validationToDbEnum(r)
+			
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
+			
+			sql = """INSERT INTO ns_rr (secure, domain, ttl, nameserver)
+				VALUES (%s, %s, %s, %s)
+				"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					nameserver = str(rr.ns_nsdname()).rstrip(".")
+					ttl = rr.ttl()
+					
+					sql_data = (secure, self.domain, ttl, nameserver)
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+				
+			rrCount = rrs.rr_count()
+		
+		self.storeDnssecData(pkt, r)
+		
+		return rrCount
+
 	
 
 class DnskeyAlgo:
@@ -473,13 +526,8 @@ class DNSKEYParser(RRTypeParser):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
 	
 	def fetchAndStore(self):
-		try:
-			result = RRTypeParser.fetch(self)
-			if not result:
-				return 0
-			pkt = result2pkt(result)
-		except DnsError:
-			logging.exception("Fetching of %s failed" % self.domain)
+		(result, pkt) = self.fetchAndParse()
+		if not result:
 			return 0
 		
 		secure = validationToDbEnum(result)
@@ -588,7 +636,8 @@ class DnsScanThread(threading.Thread):
 		
 		@param taskQueue: Queue.Queue containing domains to scan as strings
 		@param taFile: trust anchor file for libunbound
-		@param rrScanners: list of subclasses of RRTypeParser to use for scan
+		@param rrScanners: list of subclasses of RRTypeParser to use for scan.
+		NSParser is always on and shouldn't be present in the list.
 		@param dbQueue: Queue.Queue for passing things to store to StorageThread
 		@param opts: instance of DnsConfigOptions
 		"""
@@ -607,16 +656,27 @@ class DnsScanThread(threading.Thread):
 	def run(self):
 		while True:
 			domain = self.taskQueue.get()
+			nsRRcount = 0
 			
-			for parserClass in self.rrScanners:
-				try:
-					parser = parserClass(domain, self.resolver, self.opts, self.dbQueue)
-					parser.fetchAndStore()
-				except Exception:
-					logging.exception("Failed to scan domain %s with %s",
-						domain, parserClass.__name__)
+			try:
+				nsParser = NSParser(domain, self.resolver, self.opts, self.dbQueue)
+				nsRRcount = nsParser.fetchAndStore()
 				
-			self.taskQueue.task_done()
+				#skip other scanners depended on existence of NS records
+				if nsRRcount > 0:
+					for parserClass in self.rrScanners:
+						try:
+							parser = parserClass(domain, self.resolver, self.opts, self.dbQueue)
+							parser.fetchAndStore()
+						except Exception:
+							logging.exception("Failed to scan domain %s with %s",
+								domain, parserClass.__name__)
+				else:
+					logging.info("No NS RRs for %s", domain)
+			except:
+				logging.exception("Error fetching NS RRs for %s", domain)
+			finally:
+				self.taskQueue.task_done()
 
 
 def convertLoglevel(levelString):

@@ -1,5 +1,6 @@
 DROP TABLE IF EXISTS aa_rr;
 DROP TABLE IF EXISTS dnskey_rr;
+DROP TABLE IF EXISTS ns_rr;
 
 DROP TABLE IF EXISTS nsec_rr;
 DROP TABLE IF EXISTS nsec3_rr;
@@ -87,6 +88,17 @@ CREATE TABLE nsec3_rr (
 );
 
 CREATE INDEX nsec3_rr_domain_idx ON nsec3_rr (domain, rr_type);
+
+-- Table for NS records
+CREATE TABLE ns_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    nameserver VARCHAR(255) NOT NULL
+);
+
+CREATE INDEX ns_rr_domain_idx ON ns_rr (domain);
 
 
 
