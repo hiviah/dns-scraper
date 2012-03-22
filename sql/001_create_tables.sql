@@ -7,6 +7,7 @@ DROP TABLE IF EXISTS sshfp_rr;
 DROP TABLE IF EXISTS txt_rr;
 DROP TABLE IF EXISTS spf_rr;
 DROP TABLE IF EXISTS nsec3param_rr;
+DROP TABLE IF EXISTS mx_rr;
 
 DROP TABLE IF EXISTS nsec_rr;
 DROP TABLE IF EXISTS nsec3_rr;
@@ -187,6 +188,18 @@ CREATE TABLE nsec3param_rr (
 );
 
 CREATE INDEX nsec3param_rr_domain_idx ON nsec3param_rr (domain);
+
+-- Table for MX records
+CREATE TABLE mx_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    preference INTEGER NOT NULL,
+    exchange VARCHAR(255) NOT NULL
+);
+
+CREATE INDEX mx_rr_domain_idx ON mx_rr (domain);
 
 
 

@@ -881,6 +881,48 @@ class NSEC3PARAMParser(RRTypeParser):
 		
 		return rrCount
 
+class MXParser(RRTypeParser):
+	
+	rrType = RR_TYPE_MX
+	
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	
+	def fetchAndStore(self):
+		(r, pkt) = self.fetchAndParse()
+		if not r:
+			return -1
+		
+		rrCount = 0
+		
+		if r.havedata:
+			secure = validationToDbEnum(r)
+			
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
+			
+			sql = """INSERT INTO mx_rr (secure, domain, ttl,
+				preference, exchange)
+				VALUES (%s, %s, %s, %s, %s)
+				"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					ttl = rr.ttl()
+					preference = rdfConvert(rr.mx_preference(), "!H")
+					exchange = str(rr.mx_exchange()).rstrip(".")
+					
+					sql_data = (secure, self.domain, ttl,
+						preference, exchange)
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+				
+			rrCount = rrs.rr_count()
+		
+		self.storeDnssecData(pkt, r)
+		
+		return rrCount
+
 
 
 class DnsScanThread(threading.Thread):
@@ -986,7 +1028,7 @@ if __name__ == '__main__':
 	taskQueue = Queue.Queue(5000)
 	dbQueue = Queue.Queue(500)
 	
-	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser, SSHFPParser, TXTParser, SPFParser, NSEC3PARAMParser]
+	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser, SSHFPParser, TXTParser, SPFParser, NSEC3PARAMParser, MXParser]
 	
 	for i in range(threadCount):
 		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts)
