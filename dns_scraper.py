@@ -89,6 +89,7 @@ def validationToDbEnum(result):
 	if result.secure:
 		return "secure"
 	elif result.bogus:
+		logging.warn("Bogus result: %s RR type %d - %s", result.qname, result.qtype, result.why_bogus)
 		return "bogus"
 	else:
 		return "insecure"
