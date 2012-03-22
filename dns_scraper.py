@@ -28,6 +28,7 @@ import threading
 import Queue
 import logging
 import struct
+import re
 
 from binascii import hexlify
 from ConfigParser import SafeConfigParser
@@ -680,8 +681,8 @@ class SOAParser(RRTypeParser):
 					ttl = rr.ttl()
 					zone = authority and str(rr.owner()).rstrip(".") or None
 					
-					mname = str(rr.rdf(0))
-					rname = str(rr.rdf(1))
+					mname = str(rr.rdf(0)).rstrip(".")
+					rname = str(rr.rdf(1)).rstrip(".")
 					serial = rdfConvert(rr.rdf(2), "!I")
 					refresh = rdfConvert(rr.rdf(3), "!I")
 					retry = rdfConvert(rr.rdf(4), "!I")
@@ -991,6 +992,29 @@ def convertLoglevel(levelString):
 		raise ValueError("No such loglevel - %s" % levelString)
 
 
+class ParserParser(object):
+	"""Parses selected parses from config option into class objects.
+	Yeah, if we could select more ParserParsers, we'd have ParserParserParser.
+	"""
+	
+	name2class = {
+		"A": 		AParser,
+		"AAAA": 	AAAAParser,
+		"DNSKEY": 	DNSKEYParser,
+		"MX": 		MXParser,
+		"NSEC3PARAM": 	NSEC3PARAMParser,
+		"SOA": 		SOAParser,
+		"SPF": 		SPFParser,
+		"SSHFP": 	SSHFPParser,
+		"TXT": 		TXTParser,
+	}
+	
+	def __init__(self, configLine):
+		"""Parses "parsers" config value"""
+		strRRs = re.split(r",\s*", configLine)
+		self.parserClasses = [self.name2class[rr] for rr in strRRs]
+		
+
 if __name__ == '__main__':
 	if len(sys.argv) != 3: 
 		print >> sys.stderr, "ERROR: usage: <domain_file> <scraper_config>" 
@@ -1028,7 +1052,8 @@ if __name__ == '__main__':
 	taskQueue = Queue.Queue(5000)
 	dbQueue = Queue.Queue(500)
 	
-	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser, SSHFPParser, TXTParser, SPFParser, NSEC3PARAMParser, MXParser]
+	parserParser = ParserParser(scraperConfig.get("dns", "rrs"))
+	parsers = parserParser.parserClasses
 	
 	for i in range(threadCount):
 		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts)

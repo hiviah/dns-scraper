@@ -14,11 +14,15 @@ dbname = dns_scraper
 #retries - number of retries on SERVFAIL
 #ta_file - trust anchor file for DNSSEC validation, same format as
 #  ub_ctx.add_ta_file() accepts
+#rrs - RR types to fetch&store. NS, DS, RRSIG, NSEC and NSEC3 are stored always.
+#  Additional RRs can be chosen from:
+#    A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT
 [dns]
 #unbound_config = unbound.config
 #forwarder = 127.0.0.1
 retries = 1
 ta_file = keys
+rrs = A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT
 
 #logfile - logging/debug stuff gets dumped here, use "-" for stderr (without quotes)
 #loglevel - one of debug, info, warning, error, fatal
