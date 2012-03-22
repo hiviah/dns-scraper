@@ -3,6 +3,7 @@ DROP TABLE IF EXISTS dnskey_rr;
 DROP TABLE IF EXISTS ns_rr;
 DROP TABLE IF EXISTS ds_rr;
 DROP TABLE IF EXISTS soa_rr;
+DROP TABLE IF EXISTS sshfp_rr;
 
 DROP TABLE IF EXISTS nsec_rr;
 DROP TABLE IF EXISTS nsec3_rr;
@@ -134,6 +135,19 @@ CREATE TABLE soa_rr (
 );
 
 CREATE INDEX soa_rr_domain_idx ON soa_rr (domain);
+
+-- Table for SSHFP records
+CREATE TABLE sshfp_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    algo SMALLINT NOT NULL,
+    fp_type SMALLINT NOT NULL,
+    fingerprint BYTEA NOT NULL
+);
+
+CREATE INDEX sshfp_rr_domain_idx ON sshfp_rr (domain);
 
 
 

@@ -702,6 +702,51 @@ class SOAParser(RRTypeParser):
 		
 		return rrCount
 
+class SSHFPParser(RRTypeParser):
+	
+	rrType = RR_TYPE_SSHFP
+	
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	
+	def fetchAndStore(self):
+		(r, pkt) = self.fetchAndParse()
+		if not r:
+			return -1
+		
+		rrCount = 0
+		
+		if r.havedata:
+			secure = validationToDbEnum(r)
+			
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
+			
+			sql = """INSERT INTO sshfp_rr (secure, domain, ttl,
+				algo, fp_type, fingerprint)
+				VALUES (%s, %s, %s,
+					%s, %s, %s)
+				"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					ttl = rr.ttl()
+					
+					algo = rdfConvert(rr.rdf(0), "B")
+					fp_type = rdfConvert(rr.rdf(1), "B")
+					fingerprint = getRdfData(rr.rdf(2))
+					
+					sql_data = (secure, self.domain, ttl,
+						algo, fp_type, buffer(fingerprint))
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+				
+			rrCount = rrs.rr_count()
+		
+		self.storeDnssecData(pkt, r)
+		
+		return rrCount
+
 
 class StorageThread(threading.Thread):
 	"""Thread taking sql/sql_data from queue and executing it for storage in DB"""
@@ -838,7 +883,7 @@ if __name__ == '__main__':
 	taskQueue = Queue.Queue(5000)
 	dbQueue = Queue.Queue(500)
 	
-	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser]
+	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser, SSHFPParser]
 	
 	for i in range(threadCount):
 		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts)
