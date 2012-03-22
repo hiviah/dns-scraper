@@ -4,6 +4,8 @@ DROP TABLE IF EXISTS ns_rr;
 DROP TABLE IF EXISTS ds_rr;
 DROP TABLE IF EXISTS soa_rr;
 DROP TABLE IF EXISTS sshfp_rr;
+DROP TABLE IF EXISTS txt_rr;
+DROP TABLE IF EXISTS spf_rr;
 
 DROP TABLE IF EXISTS nsec_rr;
 DROP TABLE IF EXISTS nsec3_rr;
@@ -148,6 +150,28 @@ CREATE TABLE sshfp_rr (
 );
 
 CREATE INDEX sshfp_rr_domain_idx ON sshfp_rr (domain);
+
+-- Table for TXT records
+CREATE TABLE txt_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    value BYTEA NOT NULL
+);
+
+CREATE INDEX txt_rr_domain_idx ON txt_rr (domain);
+
+-- Table for SPF records
+CREATE TABLE spf_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    value BYTEA NOT NULL
+);
+
+CREATE INDEX spf_rr_domain_idx ON spf_rr (domain);
 
 
 
