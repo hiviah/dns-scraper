@@ -65,6 +65,4 @@ invocation will run the scanner:
   SERVFAIL (up to 10 minute timeouts were observed for single RR)
 - some records may be duplicated in DB if they are present in multiple
   responses (e.g. NSEC RRs)
-- every scanned FQDN is expected to have NS record (otherwise it'll get
-  skipped). You need to modify DnsScanThread if this behavior is undesired.
 

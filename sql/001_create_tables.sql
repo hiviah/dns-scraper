@@ -2,6 +2,7 @@ DROP TABLE IF EXISTS aa_rr;
 DROP TABLE IF EXISTS dnskey_rr;
 DROP TABLE IF EXISTS ns_rr;
 DROP TABLE IF EXISTS ds_rr;
+DROP TABLE IF EXISTS soa_rr;
 
 DROP TABLE IF EXISTS nsec_rr;
 DROP TABLE IF EXISTS nsec3_rr;
@@ -114,6 +115,25 @@ CREATE TABLE ds_rr (
 );
 
 CREATE INDEX ds_rr_domain_idx ON ds_rr (domain);
+
+-- Table for SOA records
+CREATE TABLE soa_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    authority BOOLEAN NOT NULL, -- if true, it's from authority section, otherwise from answer section
+    ttl INTEGER NOT NULL,
+    zone VARCHAR(255), -- dname in case of storing from authority section
+    mname VARCHAR(255) NOT NULL,
+    rname VARCHAR(255) NOT NULL,
+    serial BIGINT NOT NULL,
+    refresh INTEGER NOT NULL,
+    retry INTEGER NOT NULL,
+    expire INTEGER NOT NULL,
+    minimum INTEGER NOT NULL
+);
+
+CREATE INDEX soa_rr_domain_idx ON soa_rr (domain);
 
 
 

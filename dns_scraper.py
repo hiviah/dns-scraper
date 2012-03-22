@@ -403,22 +403,28 @@ class RRTypeParser(StorageQueueClient):
 		
 	def fetchAndStore(self):
 		"""Scan records for the domain and store results in DB.
-		@return: number of records of given RR type found
+		@return: number of records of given RR type found, or -1 if
+		permanent SERVFAIL was encountered
 		"""
 		raise NotImplementedError
 	
-	def storeDnssecData(self, pkt, result):
+	def storeDnssecData(self, pkt, result, extraSections=[]):
 		"""Store DNSSEC-related metadata - RRSIGs, NSECs, NSEC3s.
 		
 		@param pkt: reply ldns_packet
 		@param result: ub_result from which pkt was created
+		@param extraSections: list of ldns.LDNS_SECTION_* to reap RRSIGs from
 		"""
 		meta = DnsMetadata(pkt, self.dbQueue)
+		
 		if result.havedata:
 			meta.rrsigsStore(self.domain, self.rrType)
 		else:
 			meta.nsecsStore(self.domain, result)
 			meta.nsec3sStore(self.domain, result)
+		
+		for section in extraSections:
+			meta.rrsigsStore(self.domain, self.rrType, section)
 	
 
 class AParser(RRTypeParser):
@@ -431,7 +437,7 @@ class AParser(RRTypeParser):
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
 		if not r:
-			return 0
+			return -1
 		
 		rrCount = 0
 		
@@ -474,7 +480,7 @@ class NSParser(RRTypeParser):
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
 		if not r:
-			return 0
+			return -1
 		
 		rrCount = 0
 		
@@ -529,7 +535,7 @@ class DNSKEYParser(RRTypeParser):
 	def fetchAndStore(self):
 		(result, pkt) = self.fetchAndParse()
 		if not result:
-			return 0
+			return -1
 		
 		secure = validationToDbEnum(result)
 		rrCount = 0
@@ -608,7 +614,7 @@ class DSParser(RRTypeParser):
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
 		if not r:
-			return 0
+			return -1
 		
 		rrCount = 0
 		
@@ -640,6 +646,59 @@ class DSParser(RRTypeParser):
 			rrCount = rrs.rr_count()
 		
 		self.storeDnssecData(pkt, r)
+		
+		return rrCount
+
+class SOAParser(RRTypeParser):
+	
+	rrType = RR_TYPE_SOA
+	
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	
+	def fetchAndStore(self):
+		(r, pkt) = self.fetchAndParse()
+		if not r:
+			return -1
+		
+		rrCount = 0
+		secure = validationToDbEnum(r)
+		
+		#we want SOA from authority section as well to distinguish zones
+		for (section, authority) in zip([ldns.LDNS_SECTION_ANSWER, ldns.LDNS_SECTION_AUTHORITY], [False, True]):
+			rrs = pkt.rr_list_by_type(self.rrType, section)
+			if not rrs:
+				continue #if no RRs are in given section, rr_list_by_type returns None instead of empty list
+			
+			sql = """INSERT INTO soa_rr (secure, domain, authority, ttl, zone,
+				mname, rname, serial, refresh, retry, expire, minimum)
+				VALUES (%s, %s, %s, %s, %s,
+					%s, %s, %s, %s, %s, %s, %s)
+				"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					ttl = rr.ttl()
+					zone = authority and str(rr.owner()).rstrip(".") or None
+					
+					mname = str(rr.rdf(0))
+					rname = str(rr.rdf(1))
+					serial = rdfConvert(rr.rdf(2), "!I")
+					refresh = rdfConvert(rr.rdf(3), "!I")
+					retry = rdfConvert(rr.rdf(4), "!I")
+					expire = rdfConvert(rr.rdf(5), "!I")
+					minimum = rdfConvert(rr.rdf(6), "!I")
+					
+					sql_data = (secure, self.domain, authority, ttl, zone,
+						mname, rname, serial, refresh,
+						retry, expire, minimum)
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+				
+			rrCount += rrs.rr_count()
+		
+		self.storeDnssecData(pkt, r, [ldns.LDNS_SECTION_AUTHORITY])
 		
 		return rrCount
 
@@ -713,8 +772,8 @@ class DnsScanThread(threading.Thread):
 				dsParser = DSParser(domain, self.resolver, self.opts, self.dbQueue)
 				dsParser.fetchAndStore()
 				
-				#skip other scanners depended on existence of NS records
-				if nsRRcount > 0:
+				#don't scan other RRs dependent on NS if we got SERVFAIL on NS query
+				if nsRRcount >= 0:
 					for parserClass in self.rrScanners:
 						try:
 							parser = parserClass(domain, self.resolver, self.opts, self.dbQueue)
@@ -779,7 +838,7 @@ if __name__ == '__main__':
 	taskQueue = Queue.Queue(5000)
 	dbQueue = Queue.Queue(500)
 	
-	parsers = [AParser, AAAAParser, DNSKEYParser]
+	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser]
 	
 	for i in range(threadCount):
 		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts)
