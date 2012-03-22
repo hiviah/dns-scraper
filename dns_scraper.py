@@ -29,7 +29,6 @@ import Queue
 import logging
 import struct
 
-from datetime import datetime
 from binascii import hexlify
 from ConfigParser import SafeConfigParser
 
@@ -825,6 +824,63 @@ class SPFParser(TXTParser):
 	rrType = RR_TYPE_SPF
 	dbTable = "spf_rr"
 	
+class NSEC3PARAMParser(RRTypeParser):
+	
+	rrType = RR_TYPE_NSEC3PARAMS
+	
+	def __init__(self, domain, resolver, opts, dbQueue):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	
+	def fetchAndStore(self):
+		(r, pkt) = self.fetchAndParse()
+		if not r:
+			return -1
+		
+		rrCount = 0
+		
+		if r.havedata:
+			secure = validationToDbEnum(r)
+			
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
+			
+			sql = """INSERT INTO nsec3param_rr (secure, domain, ttl,
+				hash_algo, flags, iterations, salt)
+				VALUES (%s, %s, %s,
+					%s, %s, %s, %s)
+				"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					ttl = rr.ttl()
+					
+					hash_algo = rdfConvert(rr.rdf(0), "B")
+					flags = rdfConvert(rr.rdf(1), "B")
+					iterations = rdfConvert(rr.rdf(2), "!H")
+					salt = getRdfData(rr.rdf(3))
+					
+					if len(salt) < 1:
+						logging.warn("Short NSEC3PARAM salt for %s: %s",
+							self.domain, rr)
+					else:
+						#again, salt is prefixed by length byte
+						saltLen = ord(salt[0])
+						salt = salt[1:]
+						if saltLen != len(salt):
+							logging.warn("NSEC3PARAM salt length mismatch for %s, %d != %d: %s",
+								self.domain, saltLen, len(salt), rr)
+					
+					sql_data = (secure, self.domain, ttl,
+						hash_algo, flags, iterations, buffer(salt))
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+				
+			rrCount = rrs.rr_count()
+		
+		self.storeDnssecData(pkt, r)
+		
+		return rrCount
+
 
 
 class DnsScanThread(threading.Thread):
@@ -930,7 +986,7 @@ if __name__ == '__main__':
 	taskQueue = Queue.Queue(5000)
 	dbQueue = Queue.Queue(500)
 	
-	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser, SSHFPParser, TXTParser, SPFParser]
+	parsers = [AParser, AAAAParser, DNSKEYParser, SOAParser, SSHFPParser, TXTParser, SPFParser, NSEC3PARAMParser]
 	
 	for i in range(threadCount):
 		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts)

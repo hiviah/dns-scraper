@@ -6,6 +6,7 @@ DROP TABLE IF EXISTS soa_rr;
 DROP TABLE IF EXISTS sshfp_rr;
 DROP TABLE IF EXISTS txt_rr;
 DROP TABLE IF EXISTS spf_rr;
+DROP TABLE IF EXISTS nsec3param_rr;
 
 DROP TABLE IF EXISTS nsec_rr;
 DROP TABLE IF EXISTS nsec3_rr;
@@ -172,6 +173,20 @@ CREATE TABLE spf_rr (
 );
 
 CREATE INDEX spf_rr_domain_idx ON spf_rr (domain);
+
+-- Table for NSEC3PARAM records
+CREATE TABLE nsec3param_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    domain VARCHAR(255) NOT NULL,
+    ttl INTEGER NOT NULL,
+    hash_algo SMALLINT NOT NULL,
+    flags SMALLINT NOT NULL,
+    iterations INTEGER NOT NULL,
+    salt BYTEA NOT NULL
+);
+
+CREATE INDEX nsec3param_rr_domain_idx ON nsec3param_rr (domain);
 
 
 
