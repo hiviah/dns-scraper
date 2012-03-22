@@ -832,7 +832,7 @@ if __name__ == '__main__':
 		logging.basicConfig(filename=logfile, level=loglevel,
 			format="%(asctime)s %(levelname)s %(message)s [%(pathname)s:%(lineno)d]")
 	
-	#logging.info("Unbound version: %s", ub_version())
+	logging.info("Unbound version: %s", ub_version())
 	logging.info("Starting scan of domains in file %s using %d threads.", domainFilename, threadCount)
 	
 	taskQueue = Queue.Queue(5000)
