@@ -378,7 +378,7 @@ class RRTypeParser(StorageQueueClient):
 					self.domain, self.__class__.__name__, result.havedata, result.rcode_str)
 				return result
 			
-		logging.warn("Permanent SERVFAIL: domain %s type %s", \
+		logging.info("Permanent SERVFAIL: domain %s type %s", \
 			self.domain, self.__class__.__name__)
 		return None
 	
