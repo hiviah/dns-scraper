@@ -6,8 +6,8 @@ various DNSSEC stuff.
 ## Requirements
 
 * python-ldns (>= 1.6.10, latest ldns preferred)
-* python-unbound (needs patching, see below)
-* python-psycopg2
+* python-unbound (>= 1.4.16; needs patching, see below)
+* python-psycopg2 (known to run with 2.0.14)
 * postgresql-server (highly recommended to run on localhost: no reconnect in DB pool due to transaction use)
 
 ## Patching unbound
