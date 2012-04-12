@@ -5,7 +5,7 @@ various DNSSEC stuff.
 
 ## Requirements
 
-* python-ldns
+* python-ldns (>= 1.6.10, latest ldns preferred)
 * python-unbound (needs patching, see below)
 * python-psycopg2
 * postgresql-server (highly recommended to run on localhost: no reconnect in DB pool due to transaction use)
