@@ -103,7 +103,11 @@ def getLdnsBufferData(buf, l):
 	return s
 	
 def getRdfData(rdf):
-	"""Return RDF bytes as pythonic string from ldns_rdf."""
+	"""Return RDF bytes as pythonic string from ldns_rdf.
+	If rdf is None, returns None.
+	"""
+	if rdf is None:
+		return None
 	l = rdf.size()
 	buf = ldns.ldns_buffer(l)
 	rdf.write_to_buffer_canonical(buf)
@@ -315,7 +319,13 @@ class DnsMetadata(StorageQueueClient):
 				iterations = ldns.ldns_nsec3_iterations(rr)
 				salt = getRdfData(ldns.ldns_nsec3_salt(rr))
 				next_owner = str(ldns.ldns_nsec3_next_owner(rr))
-				type_bitmap = self.nsecBitmapCoveredTypes(getRdfData(ldns.ldns_nsec3_bitmap(rr)))
+				bitmapRdf = getRdfData(ldns.ldns_nsec3_bitmap(rr))
+				
+				if bitmapRdf is not None:
+					type_bitmap = self.nsecBitmapCoveredTypes(bitmapRdf)
+				else:
+					logging.warn("Empty NSEC3 bitmap for %s: %s", domain, rr)
+					type_bitmap = []
 				
 				if len(salt) < 1:
 					logging.warn("Short NSEC3 salt for %s: %s",
