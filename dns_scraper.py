@@ -204,7 +204,7 @@ class DnsMetadata(StorageQueueClient):
 					    sig_inception, keytag, signer, signature)
 				self.sqlExecute(sql, sql_data)
 			except:
-				logging.exception("Failed to parse RRSIG %s" % rr)
+				logging.exception("Failed to parse RRSIG for domain %s: %s" % (domain, rr))
 		
 	@staticmethod
 	def decodeNsecBitmapWindow(windowNum, bitmap):
@@ -279,7 +279,7 @@ class DnsMetadata(StorageQueueClient):
 				
 				self.sqlExecute(sql, sql_data)
 			except:
-				logging.exception("Failed to parse NSEC %s" % rr)
+				logging.exception("Failed to parse NSEC for domain %s: %s" % (domain, rr))
 		
 		self.rrsigsStore(domain, RR_TYPE_NSEC, ldns.LDNS_SECTION_AUTHORITY)
 	
@@ -335,7 +335,7 @@ class DnsMetadata(StorageQueueClient):
 				
 				self.sqlExecute(sql, sql_data)
 			except:
-				logging.exception("Failed to parse NSEC3 %s" % rr)
+				logging.exception("Failed to parse NSEC3 for domain %s: %s" % (domain, rr))
 		
 		self.rrsigsStore(domain, RR_TYPE_NSEC3, ldns.LDNS_SECTION_AUTHORITY)
 		
@@ -458,7 +458,7 @@ class AParser(RRTypeParser):
 					sql_data = (secure, self.domain, ttl, addr)
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount = rrs.rr_count()
 		
@@ -501,7 +501,7 @@ class NSParser(RRTypeParser):
 					sql_data = (secure, self.domain, ttl, nameserver)
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount = rrs.rr_count()
 		
@@ -641,7 +641,7 @@ class DSParser(RRTypeParser):
 						algo, digest_type, buffer(digest))
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount = rrs.rr_count()
 		
@@ -694,7 +694,7 @@ class SOAParser(RRTypeParser):
 						retry, expire, minimum)
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount += rrs.rr_count()
 		
@@ -739,7 +739,7 @@ class SSHFPParser(RRTypeParser):
 						algo, fp_type, buffer(fingerprint))
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount = rrs.rr_count()
 		
@@ -812,7 +812,7 @@ class TXTParser(RRTypeParser):
 					sql_data = (secure, self.domain, ttl, buffer(value))
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount = rrs.rr_count()
 		
@@ -874,7 +874,7 @@ class NSEC3PARAMParser(RRTypeParser):
 						hash_algo, flags, iterations, buffer(salt))
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount = rrs.rr_count()
 		
@@ -916,7 +916,7 @@ class MXParser(RRTypeParser):
 						preference, exchange)
 					self.sqlExecute(sql, sql_data)
 				except:
-					logging.exception("Failed to parse %s %s" % (rr.get_type_str(), rr))
+					logging.exception("Failed to parse %s for domain %s: %s" % (rr.get_type_str(), self.domain, rr))
 				
 			rrCount = rrs.rr_count()
 		
