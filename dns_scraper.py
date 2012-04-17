@@ -361,11 +361,11 @@ class RRTypeParser(StorageQueueClient):
 		@param resolver: ub_ctx to use for resolving
 		@param opts: instance of DnsConfigOptions
 		@param dbQueue: DB queue for passing to StorageThread
+		@param prefix: prefix to use for schema
 		"""
 		self.domain = domain
 		self.resolver = resolver
 		self.opts = opts
-		# prefix indicates either schema or table prefix
 		self.prefix = prefix
 		
 		StorageQueueClient.__init__(self, dbQueue)
@@ -955,11 +955,13 @@ class DnsScanThread(threading.Thread):
 		NSParser and DSParser are always on and shouldn't be present in the list.
 		@param dbQueue: Queue.Queue for passing things to store to StorageThread
 		@param opts: instance of DnsConfigOptions
+		@param prefix: prefix of schema
 		"""
 		self.taskQueue = taskQueue
 		self.rrScanners = rrScanners
 		self.dbQueue = dbQueue
 		self.opts = opts
+		self.prefix = prefix
 		
 		threading.Thread.__init__(self)
 		
