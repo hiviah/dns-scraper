@@ -13,4 +13,4 @@ cat create_tables_template.sql | sed 's/TABLE\ aa\_rr/TABLE\ '$PREFIX'\.aa\_rr/g
 | sed 's/TABLE\ nsec\_rr/TABLE\ '$PREFIX'\.nsec\_rr/g' \
 | sed 's/TABLE\ nsec3\_rr/TABLE\ '$PREFIX'\.nsec3\_rr/g' \
 | sed 's/TABLE\ rrsig\_rr/TABLE\ '$PREFIX'\.rrsig\_rr/g' \
-| sed 's/OURSCHEMA/'$PREFIX'/'
+| sed 's/OURSCHEMA/'$PREFIX'/' > $2
