@@ -154,13 +154,14 @@ class DnsMetadata(StorageQueueClient):
 	These are some things we need to parse from answer packet by ldns.
 	"""
 	
-	def __init__(self, pkt, dbQueue):
+	def __init__(self, pkt, dbQueue, prefix):
 		"""Fills self with parsed data from DNS answer.
 		
 		@param pkt: ldns_pkt DNS answer packet
 		@param dbQueue: DB queue for passing to StorageThread
 		"""
 		self.pkt = pkt
+		self.prefix = prefix
 		
 		StorageQueueClient.__init__(self, dbQueue)
 		
@@ -426,7 +427,7 @@ class RRTypeParser(StorageQueueClient):
 		@param result: ub_result from which pkt was created
 		@param extraSections: list of ldns.LDNS_SECTION_* to reap RRSIGs from
 		"""
-		meta = DnsMetadata(pkt, self.dbQueue)
+		meta = DnsMetadata(pkt, self.dbQueue, prefix)
 		
 		if result.havedata:
 			meta.rrsigsStore(self.domain, self.rrType)
