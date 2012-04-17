@@ -265,7 +265,7 @@ class DnsMetadata(StorageQueueClient):
 		secure = validationToDbEnum(result)
 		rcode = result.rcode
 		
-		sql = "INSERT INTO %nsec_rr " % self.prefix
+		sql = "INSERT INTO %snsec_rr " % self.prefix
 		sql = sql + """(secure, domain, rr_type, owner, ttl, rcode, next_domain, type_bitmap)
 			VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 		"""
@@ -501,7 +501,7 @@ class NSParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = "INSERT INTO %ns_rr " % self.prefix
+			sql = "INSERT INTO %sns_rr " % self.prefix
 			sql = sql + """(secure, domain, ttl, nameserver)
 				VALUES (%s, %s, %s, %s)
 				"""
@@ -636,7 +636,7 @@ class DSParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = "INSERT INTO %ds_rr " % self.prefix
+			sql = "INSERT INTO %sds_rr " % self.prefix
 			sql = sql + """(secure, domain, ttl, keytag,
 					algo, digest_type, digest)
 				VALUES (%s, %s, %s, %s,
@@ -684,7 +684,7 @@ class SOAParser(RRTypeParser):
 			if not rrs:
 				continue #if no RRs are in given section, rr_list_by_type returns None instead of empty list
 			
-			sql = "INSERT INTO %soa_rr " % self.prefix
+			sql = "INSERT INTO %ssoa_rr " % self.prefix
 			sql = sql + """(secure, domain, authority, ttl, zone,
 				mname, rname, serial, refresh, retry, expire, minimum)
 				VALUES (%s, %s, %s, %s, %s,
@@ -816,7 +816,7 @@ class TXTParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = "INSERT INTO %txt_rr " % self.prefix
+			sql = "INSERT INTO %stxt_rr " % self.prefix
 			sql = sql + "(secure, domain, ttl, value) VALUES (%s, %s, %s, %s)"
 			
 			for i in range(rrs.rr_count()):
@@ -860,7 +860,7 @@ class NSEC3PARAMParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = "INSERT INTO %nsec3param_rr" % self.prefix
+			sql = "INSERT INTO %snsec3param_rr" % self.prefix
 			sql = sql + """(secure, domain, ttl,
 				hash_algo, flags, iterations, salt)
 				VALUES (%s, %s, %s,
