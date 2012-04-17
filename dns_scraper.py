@@ -1,9 +1,8 @@
 #!/usr/bin/env python
-
-
 #   This file is part of DNS Scraper
 #
 #   Copyright (C) 2012 Ondrej Mikle, CZ.NIC Labs
+#   And a wee bit also Ralph Holz, TUM :-)
 #
 #   This program is free software: you can redistribute it and/or modify
 #   it under the terms of the GNU General Public License as published by
@@ -155,13 +154,14 @@ class DnsMetadata(StorageQueueClient):
 	These are some things we need to parse from answer packet by ldns.
 	"""
 	
-	def __init__(self, pkt, dbQueue):
+	def __init__(self, pkt, dbQueue, prefix):
 		"""Fills self with parsed data from DNS answer.
 		
 		@param pkt: ldns_pkt DNS answer packet
 		@param dbQueue: DB queue for passing to StorageThread
 		"""
 		self.pkt = pkt
+		self.prefix = prefix
 		
 		StorageQueueClient.__init__(self, dbQueue)
 		
@@ -179,8 +179,8 @@ class DnsMetadata(StorageQueueClient):
 		@param section: section to look for RRSIGs
 		"""
 		rrsigs = self.rrsigs(section)
-		sql = """INSERT INTO rrsig_rr
-			(domain, ttl, rr_type, algo, labels, orig_ttl,
+		sql = "INSERT INTO %srrsig_rr " % self.prefix
+		sql = sql + """(domain, ttl, rr_type, algo, labels, orig_ttl,
 			sig_expiration, sig_inception,
 			keytag, signer, signature)
 			VALUES (%s, %s, %s, %s, %s, %s,
@@ -266,8 +266,8 @@ class DnsMetadata(StorageQueueClient):
 		secure = validationToDbEnum(result)
 		rcode = result.rcode
 		
-		sql = """INSERT INTO nsec_rr
-			(secure, domain, rr_type, owner, ttl, rcode, next_domain, type_bitmap)
+		sql = "INSERT INTO %snsec_rr " % self.prefix
+		sql = sql + """(secure, domain, rr_type, owner, ttl, rcode, next_domain, type_bitmap)
 			VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
 		"""
 		
@@ -303,8 +303,8 @@ class DnsMetadata(StorageQueueClient):
 		secure = validationToDbEnum(result)
 		rcode = result.rcode
 		
-		sql = """INSERT INTO nsec3_rr
-			(secure, domain, rr_type, owner, ttl, rcode, hash_algo, flags,
+		sql = "INSERT INTO %snsec3_rr " % self.prefix
+		sql = sql + """(secure, domain, rr_type, owner, ttl, rcode, hash_algo, flags,
 			iterations, salt, next_owner, type_bitmap)
 			VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
 				%s, %s, %s, %s)
@@ -356,16 +356,18 @@ class RRTypeParser(StorageQueueClient):
 	rrType = 0 #undefined RR type
 	rrClass = RR_CLASS_IN
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		"""Create instance.
 		@param domain: domain to scan for
 		@param resolver: ub_ctx to use for resolving
 		@param opts: instance of DnsConfigOptions
 		@param dbQueue: DB queue for passing to StorageThread
+		@param prefix: prefix to use for schema
 		"""
 		self.domain = domain
 		self.resolver = resolver
 		self.opts = opts
+		self.prefix = prefix
 		
 		StorageQueueClient.__init__(self, dbQueue)
 	
@@ -425,7 +427,7 @@ class RRTypeParser(StorageQueueClient):
 		@param result: ub_result from which pkt was created
 		@param extraSections: list of ldns.LDNS_SECTION_* to reap RRSIGs from
 		"""
-		meta = DnsMetadata(pkt, self.dbQueue)
+		meta = DnsMetadata(pkt, self.dbQueue, prefix)
 		
 		if result.havedata:
 			meta.rrsigsStore(self.domain, self.rrType)
@@ -441,8 +443,8 @@ class AParser(RRTypeParser):
 	
 	rrType = RR_TYPE_A
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -456,7 +458,8 @@ class AParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = """INSERT INTO aa_rr (secure, domain, ttl, addr)
+			sql = "INSERT INTO %saa_rr " % self.prefix
+			sql = sql + """(secure, domain, ttl, addr)
 				VALUES (%s, %s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -484,8 +487,8 @@ class NSParser(RRTypeParser):
 	
 	rrType = RR_TYPE_NS
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -499,7 +502,8 @@ class NSParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = """INSERT INTO ns_rr (secure, domain, ttl, nameserver)
+			sql = "INSERT INTO %sns_rr " % self.prefix
+			sql = sql + """(secure, domain, ttl, nameserver)
 				VALUES (%s, %s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -539,8 +543,8 @@ class DNSKEYParser(RRTypeParser):
 	rrType = RR_TYPE_DNSKEY
 	maxDbExp = 9223372036854775807 #maximum exponent that fits in dnskey_rr.rsa_exp field
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(result, pkt) = self.fetchAndParse()
@@ -553,8 +557,8 @@ class DNSKEYParser(RRTypeParser):
 		if result.havedata:
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = """INSERT INTO dnskey_rr
-					(secure, domain, ttl, flags, protocol, algo, rsa_exp, rsa_mod, other_key)
+			sql = "INSERT INTO %sdnskey_rr " % self.prefix
+			sql = sql + """(secure, domain, ttl, flags, protocol, algo, rsa_exp, rsa_mod, other_key)
 					VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s)
 				"""
 			
@@ -618,8 +622,8 @@ class DSParser(RRTypeParser):
 	
 	rrType = RR_TYPE_DS
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -633,7 +637,8 @@ class DSParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = """INSERT INTO ds_rr (secure, domain, ttl, keytag,
+			sql = "INSERT INTO %sds_rr " % self.prefix
+			sql = sql + """(secure, domain, ttl, keytag,
 					algo, digest_type, digest)
 				VALUES (%s, %s, %s, %s,
 					%s, %s, %s)
@@ -663,8 +668,8 @@ class SOAParser(RRTypeParser):
 	
 	rrType = RR_TYPE_SOA
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -680,7 +685,8 @@ class SOAParser(RRTypeParser):
 			if not rrs:
 				continue #if no RRs are in given section, rr_list_by_type returns None instead of empty list
 			
-			sql = """INSERT INTO soa_rr (secure, domain, authority, ttl, zone,
+			sql = "INSERT INTO %ssoa_rr " % self.prefix
+			sql = sql + """(secure, domain, authority, ttl, zone,
 				mname, rname, serial, refresh, retry, expire, minimum)
 				VALUES (%s, %s, %s, %s, %s,
 					%s, %s, %s, %s, %s, %s, %s)
@@ -716,8 +722,8 @@ class SSHFPParser(RRTypeParser):
 	
 	rrType = RR_TYPE_SSHFP
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -731,9 +737,10 @@ class SSHFPParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = """INSERT INTO sshfp_rr (secure, domain, ttl,
+			sql = "INSERT INTO %ssshfp_rr " %  self.prefix
+			sql = sql + """(secure, domain, ttl,
 				algo, fp_type, fingerprint)
-				VALUES (%s, %s, %s,
+				VALUES (%s,% %s, %s,
 					%s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -795,8 +802,8 @@ class TXTParser(RRTypeParser):
 	rrType = RR_TYPE_TXT
 	dbTable = "txt_rr"
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -810,8 +817,8 @@ class TXTParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = "INSERT INTO %s (secure, domain, ttl, value) " % self.dbTable
-			sql += " VALUES (%s, %s, %s, %s)"
+			sql = "INSERT INTO %stxt_rr " % self.prefix
+			sql = sql + "(secure, domain, ttl, value) VALUES (%s, %s, %s, %s)"
 			
 			for i in range(rrs.rr_count()):
 				try:
@@ -839,8 +846,8 @@ class NSEC3PARAMParser(RRTypeParser):
 	
 	rrType = RR_TYPE_NSEC3PARAMS
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -854,7 +861,8 @@ class NSEC3PARAMParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = """INSERT INTO nsec3param_rr (secure, domain, ttl,
+			sql = "INSERT INTO %snsec3param_rr" % self.prefix
+			sql = sql + """(secure, domain, ttl,
 				hash_algo, flags, iterations, salt)
 				VALUES (%s, %s, %s,
 					%s, %s, %s, %s)
@@ -896,8 +904,8 @@ class MXParser(RRTypeParser):
 	
 	rrType = RR_TYPE_MX
 	
-	def __init__(self, domain, resolver, opts, dbQueue):
-		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue)
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
 	
 	def fetchAndStore(self):
 		(r, pkt) = self.fetchAndParse()
@@ -911,7 +919,8 @@ class MXParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = """INSERT INTO mx_rr (secure, domain, ttl,
+			sql = "INSERT INTO %smx_rr " % self.prefix
+			sql = sql + """(secure, domain, ttl,
 				preference, exchange)
 				VALUES (%s, %s, %s, %s, %s)
 				"""
@@ -938,7 +947,7 @@ class MXParser(RRTypeParser):
 
 class DnsScanThread(threading.Thread):
 
-	def __init__(self, taskQueue, taFile, rrScanners, dbQueue, opts):
+	def __init__(self, taskQueue, taFile, rrScanners, dbQueue, opts, prefix):
 		"""Create scanning thread.
 		
 		@param taskQueue: Queue.Queue containing domains to scan as strings
@@ -947,11 +956,13 @@ class DnsScanThread(threading.Thread):
 		NSParser and DSParser are always on and shouldn't be present in the list.
 		@param dbQueue: Queue.Queue for passing things to store to StorageThread
 		@param opts: instance of DnsConfigOptions
+		@param prefix: prefix of schema
 		"""
 		self.taskQueue = taskQueue
 		self.rrScanners = rrScanners
 		self.dbQueue = dbQueue
 		self.opts = opts
+		self.prefix = prefix
 		
 		threading.Thread.__init__(self)
 		
@@ -966,18 +977,18 @@ class DnsScanThread(threading.Thread):
 			nsRRcount = 0
 			
 			try:
-				nsParser = NSParser(domain, self.resolver, self.opts, self.dbQueue)
+				nsParser = NSParser(domain, self.resolver, self.opts, self.dbQueue, prefix)
 				nsRRcount = nsParser.fetchAndStore()
 				
 				#DS RRs are in parent zone
-				dsParser = DSParser(domain, self.resolver, self.opts, self.dbQueue)
+				dsParser = DSParser(domain, self.resolver, self.opts, self.dbQueue, prefix)
 				dsParser.fetchAndStore()
 				
 				#don't scan other RRs dependent on NS if we got SERVFAIL on NS query
 				if nsRRcount >= 0:
 					for parserClass in self.rrScanners:
 						try:
-							parser = parserClass(domain, self.resolver, self.opts, self.dbQueue)
+							parser = parserClass(domain, self.resolver, self.opts, self.dbQueue, prefix)
 							parser.fetchAndStore()
 						except Exception:
 							logging.exception("Failed to scan domain %s with %s",
@@ -1036,6 +1047,9 @@ if __name__ == '__main__':
 	scraperConfig.read(sys.argv[2])
 	
 	threadCount = scraperConfig.getint("processing", "scan_threads")
+
+	# prefix/schema to use in DB:
+	prefix = scraperConfig.get("database", "prefix")
 	
 	#DNS resolution options
 	taFile = scraperConfig.get("dns", "ta_file")
@@ -1066,7 +1080,7 @@ if __name__ == '__main__':
 	parsers = parserParser.parserClasses
 	
 	for i in range(threadCount):
-		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts)
+		t = DnsScanThread(taskQueue, taFile, parsers, dbQueue, opts, prefix)
 		t.setDaemon(True)
 		t.start()
 	
