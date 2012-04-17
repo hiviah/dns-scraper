@@ -1,5 +1,5 @@
 #!/bin/bash
-PREFIX=17Apr2012
+PREFIX=$1
 cat create_tables_template.sql | sed 's/aa\_rr/'$PREFIX'\.aa\_rr/g' \
 | sed 's/dnskey\_rr/'$PREFIX'\.dnskey\_rr/g' \
 | sed 's/ns\_rr/'$PREFIX'\.ns\_rr/g' \
@@ -13,4 +13,4 @@ cat create_tables_template.sql | sed 's/aa\_rr/'$PREFIX'\.aa\_rr/g' \
 | sed 's/nsec\_rr/'$PREFIX'\.nsec\_rr/g' \
 | sed 's/nsec3\_rr/'$PREFIX'\.nsec3\_rr/g' \
 | sed 's/rrsig\_rr/'$PREFIX'\.rrsig\_rr/g' \
-| sed 's/OURSCHEMA/'$PREFIX'/'
+| sed 's/OURSCHEMA/'$PREFIX'/' > $2
