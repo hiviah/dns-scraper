@@ -5,5 +5,5 @@ if [ -z "$1" ]; then
     exit 1
 fi
 
-sed s/__SCHEMAPLACEHOLDER__/"$1"/g create_tables_template.sql
+sed s/__SCHEMAPLACEHOLDER__/"$1"/g "${0%%/*}/create_tables_template.sql"
 
