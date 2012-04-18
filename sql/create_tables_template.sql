@@ -1,8 +1,10 @@
+-- __SCHEMAPLACEHOLDER__ will be replaced by sed for actual schema name
+DROP SCHEMA IF EXISTS __SCHEMAPLACEHOLDER__ CASCADE;
+CREATE SCHEMA __SCHEMAPLACEHOLDER__;
+
+SET search_path = __SCHEMAPLACEHOLDER__;
+
 DROP TYPE  IF EXISTS validation_result;
-
-DROP SCHEMA IF EXISTS OURSCHEMA CASCADE;
-CREATE SCHEMA OURSCHEMA;
-
 CREATE TYPE validation_result AS ENUM ('insecure', 'secure', 'bogus');
 
 -- Table for RRSIGs
