@@ -740,7 +740,7 @@ class SSHFPParser(RRTypeParser):
 			sql = "INSERT INTO %ssshfp_rr " %  self.prefix
 			sql = sql + """(secure, domain, ttl,
 				algo, fp_type, fingerprint)
-				VALUES (%s,% %s, %s,
+				VALUES (%s, %s, %s,
 					%s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
