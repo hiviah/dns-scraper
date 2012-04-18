@@ -1,14 +1,16 @@
 #PostgreSQL configuration data
 # host, port, user, password - data needed to create the connection
 # dbname - database name used (in case it would clash with your existing DB)
-# prefix - prefix for tables to use - best to use something like TLD_DATE
+# prefix - prefix for tables to use - best to use something like TLD_DATE, don't
+#   forget to add dot at the end if it's supposed to be schema name; by default
+#   prefix is empty, which means default postgres schema 'public' will be used
 [database]
 host = localhost
 port = 5432
 user = some_user
 password = db_password
 dbname = dns_scraper
-prefix = ORG_13Apr2012
+#prefix = schema_name.
 
 #unbound_config - fine-tuned configuration for libunbound (optional)
 #forwarder - if you want to use forwarder recursive DNS server (optional)

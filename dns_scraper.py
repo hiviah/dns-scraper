@@ -1049,7 +1049,9 @@ if __name__ == '__main__':
 	threadCount = scraperConfig.getint("processing", "scan_threads")
 
 	# prefix/schema to use in DB:
-	prefix = scraperConfig.get("database", "prefix")
+	prefix = ""
+	if scraperConfig.has_option("database", "prefix"):
+		prefix = scraperConfig.get("database", "prefix")
 	
 	#DNS resolution options
 	taFile = scraperConfig.get("dns", "ta_file")
