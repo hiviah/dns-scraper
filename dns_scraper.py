@@ -203,7 +203,7 @@ class DnsMetadata(StorageQueueClient):
 				keytag = rdfConvert(rr.rrsig_keytag(), "!H")
 				signer = str(rr.rrsig_signame()).rstrip(".")
 				signature = buffer(getRdfData(rr.rrsig_sig()))
-				
+				domain = domain.decode('latin-1').encode('idna')
 				sql_data = (domain, ttl, rrType, algo, labels, orig_ttl, sig_expiration,
 					    sig_inception, keytag, signer, signature)
 				self.sqlExecute(sql, sql_data)
@@ -277,7 +277,7 @@ class DnsMetadata(StorageQueueClient):
 				owner = str(rr.owner()).lower()
 				next_domain = str(rr.rdf(0))
 				type_bitmap = self.nsecBitmapCoveredTypes(getRdfData(rr.rdf(1)))
-				
+				domain = domain.decode('latin-1').encode('idna')	
 				sql_data = (secure, domain, result.qtype, owner, ttl, rcode,
 					next_domain, type_bitmap)
 				
@@ -338,7 +338,7 @@ class DnsMetadata(StorageQueueClient):
 					if saltLen != len(salt):
 						logging.warn("NSEC3 salt length mismatch for %s, %d != %d: %s",
 							domain, saltLen, len(salt), rr)
-				
+				domain = domain.decode('latin-1').encode('idna')	
 				sql_data = (secure, domain, result.qtype, owner, ttl, rcode,
 					hash_algo, flags, iterations, buffer(salt),
 					next_owner, type_bitmap)
@@ -467,7 +467,7 @@ class AParser(RRTypeParser):
 					rr = rrs.rr(i)
 					addr = str(rr.a_address())
 					ttl = rr.ttl()
-					
+					domain = domain.decode('latin-1').encode('idna')
 					sql_data = (secure, self.domain, ttl, addr)
 					self.sqlExecute(sql, sql_data)
 				except:
@@ -511,7 +511,7 @@ class NSParser(RRTypeParser):
 					rr = rrs.rr(i)
 					nameserver = str(rr.ns_nsdname()).rstrip(".")
 					ttl = rr.ttl()
-					
+					domain = domain.decode('latin-1').encode('idna')	
 					sql_data = (secure, self.domain, ttl, nameserver)
 					self.sqlExecute(sql, sql_data)
 				except:
@@ -605,7 +605,7 @@ class DNSKEYParser(RRTypeParser):
 						
 					else: #not a RSA key
 						other_key = buffer(pubkey)
-					
+					domain = domain.decode('latin-1').encode('idna')
 					sql_data = (secure, self.domain, ttl, flags, proto, algo, exponent, modulus, other_key)
 					self.sqlExecute(sql, sql_data)
 				except:
@@ -651,7 +651,7 @@ class DSParser(RRTypeParser):
 					algo = rdfConvert(rr.rdf(1), "B")
 					digest_type = rdfConvert(rr.rdf(2), "B")
 					digest = getRdfData(rr.rdf(3))
-					
+					domain = domain.decode('latin-1').encode('idna')				
 					sql_data = (secure, self.domain, ttl, keytag,
 						algo, digest_type, buffer(digest))
 					self.sqlExecute(sql, sql_data)
@@ -704,7 +704,7 @@ class SOAParser(RRTypeParser):
 					retry = rdfConvert(rr.rdf(4), "!I")
 					expire = rdfConvert(rr.rdf(5), "!I")
 					minimum = rdfConvert(rr.rdf(6), "!I")
-					
+					domain = domain.decode('latin-1').encode('idna')	
 					sql_data = (secure, self.domain, authority, ttl, zone,
 						mname, rname, serial, refresh,
 						retry, expire, minimum)
@@ -751,7 +751,7 @@ class SSHFPParser(RRTypeParser):
 					algo = rdfConvert(rr.rdf(0), "B")
 					fp_type = rdfConvert(rr.rdf(1), "B")
 					fingerprint = getRdfData(rr.rdf(2))
-					
+					domain = domain.decode('latin-1').encode('idna')	
 					sql_data = (secure, self.domain, ttl,
 						algo, fp_type, buffer(fingerprint))
 					self.sqlExecute(sql, sql_data)
@@ -825,7 +825,7 @@ class TXTParser(RRTypeParser):
 					rr = rrs.rr(i)
 					ttl = rr.ttl()
 					value = str(rr.rdf(0))
-					
+					domain = domain.decode('latin-1').encode('idna')	
 					sql_data = (secure, self.domain, ttl, buffer(value))
 					self.sqlExecute(sql, sql_data)
 				except:
@@ -887,7 +887,7 @@ class NSEC3PARAMParser(RRTypeParser):
 						if saltLen != len(salt):
 							logging.warn("NSEC3PARAM salt length mismatch for %s, %d != %d: %s",
 								self.domain, saltLen, len(salt), rr)
-					
+					domain = domain.decode('latin-1').encode('idna')	
 					sql_data = (secure, self.domain, ttl,
 						hash_algo, flags, iterations, buffer(salt))
 					self.sqlExecute(sql, sql_data)
@@ -930,7 +930,7 @@ class MXParser(RRTypeParser):
 					ttl = rr.ttl()
 					preference = rdfConvert(rr.mx_preference(), "!H")
 					exchange = str(rr.mx_exchange()).rstrip(".")
-					
+					domain = domain.decode('latin-1').encode('idna')	
 					sql_data = (secure, self.domain, ttl,
 						preference, exchange)
 					self.sqlExecute(sql, sql_data)
