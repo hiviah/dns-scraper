@@ -1,0 +1,13 @@
+CREATE INDEX rrsig_rr_domain_type_idx ON rrsig_rr (domain, rr_type);
+CREATE INDEX aa_rr_domain_idx ON aa_rr (domain);
+CREATE INDEX dnskey_rr_domain_algo_idx ON dnskey_rr (domain, algo);
+CREATE INDEX nsec_rr_domain_idx ON nsec_rr (domain, rr_type);
+CREATE INDEX nsec3_rr_domain_idx ON nsec3_rr (domain, rr_type);
+CREATE INDEX ns_rr_domain_idx ON ns_rr (domain);
+CREATE INDEX ds_rr_domain_idx ON ds_rr (domain);
+CREATE INDEX soa_rr_domain_idx ON soa_rr (domain);
+CREATE INDEX sshfp_rr_domain_idx ON sshfp_rr (domain);
+CREATE INDEX txt_rr_domain_idx ON txt_rr (domain);
+CREATE INDEX spf_rr_domain_idx ON spf_rr (domain);
+CREATE INDEX nsec3param_rr_domain_idx ON nsec3param_rr (domain);
+CREATE INDEX mx_rr_domain_idx ON mx_rr (domain);
