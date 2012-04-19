@@ -108,10 +108,10 @@ CREATE TABLE soa_rr (
     mname VARCHAR(255) NOT NULL,
     rname VARCHAR(255) NOT NULL,
     serial BIGINT NOT NULL,
-    refresh INTEGER NOT NULL,
-    retry INTEGER NOT NULL,
-    expire INTEGER NOT NULL,
-    minimum INTEGER NOT NULL
+    refresh BIGINT NOT NULL,
+    retry BIGINT NOT NULL,
+    expire BIGINT NOT NULL,
+    minimum BIGINT NOT NULL
 );
 
 -- Table for SSHFP records
