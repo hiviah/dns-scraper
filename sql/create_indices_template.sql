@@ -1,3 +1,5 @@
+-- __SCHEMAPLACEHOLDER__ will be replaced by sed for actual schema name
+SET search_path = __SCHEMAPLACEHOLDER__;
 CREATE INDEX rrsig_rr_domain_type_idx ON rrsig_rr (domain, rr_type);
 CREATE INDEX aa_rr_domain_idx ON aa_rr (domain);
 CREATE INDEX dnskey_rr_domain_algo_idx ON dnskey_rr (domain, algo);
