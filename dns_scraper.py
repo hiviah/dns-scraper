@@ -740,7 +740,7 @@ class SSHFPParser(RRTypeParser):
 			sql = "INSERT INTO %ssshfp_rr " %  self.prefix
 			sql = sql + """(secure, domain, ttl,
 				algo, fp_type, fingerprint)
-				VALUES (%s,% %s, %s,
+				VALUES (%s, %s, %s,
 					%s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -1049,7 +1049,9 @@ if __name__ == '__main__':
 	threadCount = scraperConfig.getint("processing", "scan_threads")
 
 	# prefix/schema to use in DB:
-	prefix = scraperConfig.get("database", "prefix")
+	prefix = ""
+	if scraperConfig.has_option("database", "prefix"):
+		prefix = scraperConfig.get("database", "prefix")
 	
 	#DNS resolution options
 	taFile = scraperConfig.get("dns", "ta_file")

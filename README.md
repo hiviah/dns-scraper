@@ -36,11 +36,19 @@ stable unbound 1.4.16.
 ## Create database and tables, modify config
 
 Create your database (let's name it dns_scraper) using createdb or pgadmin, add
-your user, give him privilege to create tables.
+your user, give him privilege to create tables, the user needs to be owner of schemas
+you'll be modifying (by default it seems that schema 'public' is owned by postgres).
 
 Then create tables (in dns-scraper dir):
 
-    psql dns_scraper < sql/001_create_tables.sql
+    make tables
+
+Optionally, you can set `DNS_SCRAPER_DB` and/or `DNS_SCRAPER_SCHEMA` variables to
+customize names of DB and/or schema, e.g.:
+
+    export DNS_SCRAPER_DB=scraper_db
+    export DNS_SCRAPER_SCHEMA=scan_2012_04_18
+    make tables
 
 Copy `dns_scraper.config.sample` to `dns_scraper.config`, set username/pass to DB.
 
