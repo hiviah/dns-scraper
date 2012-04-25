@@ -8,6 +8,7 @@ DROP TYPE  IF EXISTS validation_result;
 CREATE TYPE validation_result AS ENUM ('insecure', 'secure', 'bogus');
 
 --CREATE LANGUAGE plpgsql;
+--CREATE LANGUAGE plpythonu;
 
 CREATE TABLE domains (
 	id SERIAL PRIMARY KEY,
@@ -28,6 +29,16 @@ BEGIN
         END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Only superuser may use create functions plpythonu language.
+-- If you create this function e.g. as postgres user, then example usage is:
+-- -- SELECT aa_rr.id, pyidn_decode(fqdn), secure, ttl, addr FROM aa_rr INNER JOIN domains ON (fqdn_id = domains.id);
+--
+--CREATE FUNCTION pyidn_decode (punycode_domain VARCHAR)
+--  RETURNS VARCHAR
+--AS $$
+--	return punycode_domain.decode('idna').encode('utf-8');
+--$$ LANGUAGE plpythonu;
 
 -- Table for RRSIGs
 CREATE TABLE rrsig_rr (
