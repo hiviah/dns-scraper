@@ -198,3 +198,33 @@ CREATE TABLE mx_rr (
     exchange VARCHAR(255) NOT NULL
 );
 
+-- Table for CNAME records
+CREATE TABLE cname_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    fqdn_id INTEGER REFERENCES domains(id),
+    ttl INTEGER NOT NULL,
+    dest VARCHAR(255) NOT NULL
+);
+
+-- Table for DNAME records
+CREATE TABLE dname_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    fqdn_id INTEGER REFERENCES domains(id),
+    ttl INTEGER NOT NULL,
+    dest VARCHAR(255) NOT NULL
+);
+
+-- due to fastflux DNS, CNAME/DNAME destination can change
+CREATE UNIQUE INDEX cname_rr_fqdn_id_dest_idx ON cname_rr(fqdn_id, dest);
+CREATE UNIQUE INDEX dname_rr_fqdn_id_dest_idx ON dname_rr(fqdn_id, dest);
+
+-- INSERT IGNORE emulation on cname_rr/dname_rr tables
+CREATE RULE insert_ignore_cname AS ON INSERT TO cname_rr
+	WHERE (EXISTS (SELECT 1 FROM cname_rr WHERE cname_rr.fqdn_id = new.fqdn_id AND cname_rr.dest = new.dest))
+	DO INSTEAD NOTHING;
+CREATE RULE insert_ignore_cname AS ON INSERT TO dname_rr
+	WHERE (EXISTS (SELECT 1 FROM dname_rr WHERE dname_rr.fqdn_id = new.fqdn_id AND dname_rr.dest = new.dest))
+	DO INSTEAD NOTHING;
+
