@@ -67,6 +67,11 @@ invocation will run the scanner:
 
     ./dns_scraper.py domains dns_scraper.config
 
+After the scan is complete, you may create indices to speed up working/searching 
+(envvars `DNS_SCRAPER_DB` and/or `DNS_SCRAPER_SCHEMA` are supported like before):
+
+    make indices
+
 ## Known bugs
 
 - sometimes libunbound's resolution can take really long time when encountering
