@@ -56,8 +56,6 @@ CREATE TABLE rrsig_rr (
     signature BYTEA NOT NULL
 );
 
---CREATE INDEX rrsig_rr_fqdn_id_type_idx ON rrsig_rr (fqdn_id, rr_type);
-
 -- Table for A and AAAA records
 CREATE TABLE aa_rr (
     id SERIAL PRIMARY KEY,
@@ -66,8 +64,6 @@ CREATE TABLE aa_rr (
     ttl INTEGER NOT NULL,
     addr INET NOT NULL
 );
-
---CREATE INDEX aa_rr_fqdn_id_idx ON aa_rr (fqdn_id);
 
 -- Table for DNSKEY
 CREATE TABLE dnskey_rr (
@@ -83,8 +79,6 @@ CREATE TABLE dnskey_rr (
     other_key BYTEA -- all other non-RSA keys unparsed (including RSA keys with too large exponent)
 );
 
---CREATE INDEX dnskey_rr_fqdn_id_algo_idx ON dnskey_rr (fqdn_id, algo);
-
 -- Table for NSEC records
 CREATE TABLE nsec_rr (
     id SERIAL PRIMARY KEY,
@@ -97,8 +91,6 @@ CREATE TABLE nsec_rr (
     next_domain VARCHAR(255) NOT NULL,
     type_bitmap INTEGER[] NOT NULL
 );
-
---CREATE INDEX nsec_rr_fqdn_id_idx ON nsec_rr (fqdn_id, rr_type);
 
 -- Table for NSEC3 records
 CREATE TABLE nsec3_rr (
@@ -117,8 +109,6 @@ CREATE TABLE nsec3_rr (
     type_bitmap INTEGER[] NOT NULL
 );
 
---CREATE INDEX nsec3_rr_fqdn_id_idx ON nsec3_rr (fqdn_id, rr_type);
-
 -- Table for NS records
 CREATE TABLE ns_rr (
     id SERIAL PRIMARY KEY,
@@ -127,8 +117,6 @@ CREATE TABLE ns_rr (
     ttl INTEGER NOT NULL,
     nameserver VARCHAR(255) NOT NULL
 );
-
---CREATE INDEX ns_rr_fqdn_id_idx ON ns_rr (fqdn_id);
 
 -- Table for DS records
 CREATE TABLE ds_rr (
@@ -141,8 +129,6 @@ CREATE TABLE ds_rr (
     digest_type SMALLINT NOT NULL,
     digest BYTEA NOT NULL
 );
-
---CREATE INDEX ds_rr_fqdn_id_idx ON ds_rr (fqdn_id);
 
 -- Table for SOA records
 CREATE TABLE soa_rr (
@@ -161,8 +147,6 @@ CREATE TABLE soa_rr (
     minimum BIGINT NOT NULL
 );
 
---CREATE INDEX soa_rr_fqdn_id_idx ON soa_rr (fqdn_id);
-
 -- Table for SSHFP records
 CREATE TABLE sshfp_rr (
     id SERIAL PRIMARY KEY,
@@ -174,8 +158,6 @@ CREATE TABLE sshfp_rr (
     fingerprint BYTEA NOT NULL
 );
 
---CREATE INDEX sshfp_rr_fqdn_id_idx ON sshfp_rr (fqdn_id);
-
 -- Table for TXT records
 CREATE TABLE txt_rr (
     id SERIAL PRIMARY KEY,
@@ -185,8 +167,6 @@ CREATE TABLE txt_rr (
     value BYTEA NOT NULL
 );
 
---CREATE INDEX txt_rr_fqdn_id_idx ON txt_rr (fqdn_id);
-
 -- Table for SPF records
 CREATE TABLE spf_rr (
     id SERIAL PRIMARY KEY,
@@ -195,8 +175,6 @@ CREATE TABLE spf_rr (
     ttl INTEGER NOT NULL,
     value BYTEA NOT NULL
 );
-
---CREATE INDEX spf_rr_fqdn_id_idx ON spf_rr (fqdn_id);
 
 -- Table for NSEC3PARAM records
 CREATE TABLE nsec3param_rr (
@@ -210,8 +188,6 @@ CREATE TABLE nsec3param_rr (
     salt BYTEA NOT NULL
 );
 
---CREATE INDEX nsec3param_rr_fqdn_id_idx ON nsec3param_rr (fqdn_id);
-
 -- Table for MX records
 CREATE TABLE mx_rr (
     id SERIAL PRIMARY KEY,
@@ -221,8 +197,4 @@ CREATE TABLE mx_rr (
     preference INTEGER NOT NULL,
     exchange VARCHAR(255) NOT NULL
 );
-
---CREATE INDEX mx_rr_fqdn_id_idx ON mx_rr (fqdn_id);
-
-
 
