@@ -21,12 +21,15 @@ dbname = dns_scraper
 #rrs - RR types to fetch&store. NS, DS, RRSIG, NSEC and NSEC3 are stored always.
 #  Additional RRs can be chosen from:
 #    A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT
+# source_encoding - encoding of the input file, necessary if IDN are used;
+#   default utf-8
 [dns]
 #unbound_config = unbound.config
 #forwarder = 127.0.0.1
 retries = 1
 ta_file = keys
 rrs = A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT
+#source_encoding = utf-8
 
 #logfile - logging/debug stuff gets dumped here, use "-" for stderr (without quotes)
 #loglevel - one of debug, info, warning, error, fatal

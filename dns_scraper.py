@@ -1054,6 +1054,10 @@ if __name__ == '__main__':
 	if scraperConfig.has_option("database", "prefix"):
 		prefix = scraperConfig.get("database", "prefix")
 	
+	sourceEncoding = "utf-8"
+	if scraperConfig.has_option("dns", "source_encoding"):
+		sourceEncoding = scraperConfig.get("dns", "source_encoding")
+	
 	#DNS resolution options
 	taFile = scraperConfig.get("dns", "ta_file")
 	opts = DnsConfigOptions(scraperConfig)
@@ -1096,7 +1100,8 @@ if __name__ == '__main__':
 	domainCount = 0
 	
 	for line in domainFile:
-		domain = line.rstrip()
+		#automatically punycode-encode any IDN domains
+		domain = line.rstrip().decode(sourceEncoding).encode("idna")
 		taskQueue.put(domain)
 		domainCount += 1
 		
