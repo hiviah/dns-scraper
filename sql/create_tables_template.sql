@@ -11,8 +11,8 @@ CREATE TYPE validation_result AS ENUM ('insecure', 'secure', 'bogus');
 --CREATE LANGUAGE plpythonu;
 
 CREATE TABLE domains (
-	id SERIAL PRIMARY KEY,
-	fqdn VARCHAR(255) UNIQUE NOT NULL
+    id SERIAL PRIMARY KEY,
+    fqdn VARCHAR(255) UNIQUE NOT NULL
 );
 
 CREATE FUNCTION insert_unique_domain(new_fqdn VARCHAR) RETURNS INTEGER AS
@@ -20,13 +20,13 @@ $$
 DECLARE
 	new_index INTEGER;
 BEGIN
-	SELECT domains.id FROM domains WHERE fqdn = new_fqdn LIMIT 1 INTO new_index;
-        IF new_index IS NOT NULL THEN
-		RETURN new_index;
-        ELSE
-                INSERT INTO domains (fqdn) VALUES (new_fqdn) RETURNING id INTO new_index;
-		RETURN new_index;
-        END IF;
+    SELECT domains.id FROM domains WHERE fqdn = new_fqdn LIMIT 1 INTO new_index;
+    IF new_index IS NOT NULL THEN
+	RETURN new_index;
+    ELSE
+	INSERT INTO domains (fqdn) VALUES (new_fqdn) RETURNING id INTO new_index;
+	RETURN new_index;
+    END IF;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -222,9 +222,9 @@ CREATE UNIQUE INDEX dname_rr_fqdn_id_dest_idx ON dname_rr(fqdn_id, dest);
 
 -- INSERT IGNORE emulation on cname_rr/dname_rr tables
 CREATE RULE insert_ignore_cname AS ON INSERT TO cname_rr
-	WHERE (EXISTS (SELECT 1 FROM cname_rr WHERE cname_rr.fqdn_id = new.fqdn_id AND cname_rr.dest = new.dest))
-	DO INSTEAD NOTHING;
+    WHERE (EXISTS (SELECT 1 FROM cname_rr WHERE cname_rr.fqdn_id = new.fqdn_id AND cname_rr.dest = new.dest))
+    DO INSTEAD NOTHING;
 CREATE RULE insert_ignore_cname AS ON INSERT TO dname_rr
-	WHERE (EXISTS (SELECT 1 FROM dname_rr WHERE dname_rr.fqdn_id = new.fqdn_id AND dname_rr.dest = new.dest))
-	DO INSTEAD NOTHING;
+    WHERE (EXISTS (SELECT 1 FROM dname_rr WHERE dname_rr.fqdn_id = new.fqdn_id AND dname_rr.dest = new.dest))
+    DO INSTEAD NOTHING;
 
