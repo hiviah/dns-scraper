@@ -39,7 +39,7 @@ from unbound import ub_ctx, ub_version, ub_strerror, ub_ctx_config, \
 	RR_CLASS_IN, RR_TYPE_DNSKEY, RR_TYPE_A, \
 	RR_TYPE_AAAA, RR_TYPE_SSHFP, RR_TYPE_MX, RR_TYPE_DS, RR_TYPE_NSEC, \
 	RR_TYPE_NSEC3, RR_TYPE_NSEC3PARAMS, RR_TYPE_RRSIG, RR_TYPE_SOA, \
-	RR_TYPE_NS, RR_TYPE_TXT, RCODE_SERVFAIL
+	RR_TYPE_NS, RR_TYPE_TXT, RR_TYPE_CNAME, RR_TYPE_DNAME, RCODE_SERVFAIL
 
 RR_TYPE_SPF = 99
 
@@ -420,6 +420,35 @@ class RRTypeParser(StorageQueueClient):
 		"""
 		raise NotImplementedError
 	
+	def storeRedirects(self, result, pkt):
+		"""Store CNAME/DNAME redirects from response packet.
+		@param pkt: ldns_pkt DNS response packet
+		@param result: ub_result from ub_resolve()
+		"""
+		cnames = pkt.rr_list_by_type(RR_TYPE_CNAME, ldns.LDNS_SECTION_ANSWER)
+		dnames = pkt.rr_list_by_type(RR_TYPE_DNAME, ldns.LDNS_SECTION_ANSWER)
+		secure = validationToDbEnum(result)
+		
+		for rrs, table in ((cnames, "cname"), (dnames, "dname")):
+			if rrs is None:
+				continue #stupid None instead of empty rr_list
+			
+			sql = "INSERT INTO %s%s_rr " % (self.prefix, table)
+			sql = sql + """(secure, fqdn_id, ttl, dest)
+				VALUES (%s, insert_unique_domain(%s), %s, %s)
+					"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					dest = str(rr.rdf(0)).rstrip(".")
+					domain = str(rr.owner()).rstrip(".")
+					ttl = rr.ttl()
+					
+					sql_data = (secure, domain, ttl, dest)
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s for domain %s: %s" % (table.upper(), self.domain, rr))
+		
 	def storeDnssecData(self, pkt, result, extraSections=[]):
 		"""Store DNSSEC-related metadata - RRSIGs, NSECs, NSEC3s.
 		
@@ -451,6 +480,7 @@ class AParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		
 		if r.havedata:
@@ -495,6 +525,7 @@ class NSParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		
 		if r.havedata:
@@ -551,6 +582,7 @@ class DNSKEYParser(RRTypeParser):
 		if not result:
 			return -1
 		
+		self.storeRedirects(result, pkt)
 		secure = validationToDbEnum(result)
 		rrCount = 0
 		
@@ -630,6 +662,7 @@ class DSParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		
 		if r.havedata:
@@ -676,6 +709,7 @@ class SOAParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		secure = validationToDbEnum(r)
 		
@@ -730,6 +764,7 @@ class SSHFPParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		
 		if r.havedata:
@@ -810,6 +845,7 @@ class TXTParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		
 		if r.havedata:
@@ -855,6 +891,7 @@ class NSEC3PARAMParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		
 		if r.havedata:
@@ -913,6 +950,7 @@ class MXParser(RRTypeParser):
 		if not r:
 			return -1
 		
+		self.storeRedirects(r, pkt)
 		rrCount = 0
 		
 		if r.havedata:
