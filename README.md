@@ -50,6 +50,9 @@ customize names of DB and/or schema, e.g.:
     export DNS_SCRAPER_SCHEMA=scan_2012_04_18
     make tables
 
+Note: if you get error `ERROR:  language "plpgsql" does not exist`, use `CREATE LANGUAGE plpgsql;` to
+load the plpgsql language (needed only once).
+
 Copy `dns_scraper.config.sample` to `dns_scraper.config`, set username/pass to DB.
 
 Make sure your user in DB has enough connections allowed. Usually the single
