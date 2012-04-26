@@ -57,8 +57,9 @@ load the plpgsql language (needed only once).
 Copy `dns_scraper.config.sample` to `dns_scraper.config`, set username/pass to DB.
 
 Make sure your user in DB has enough connections allowed. Usually the single
-storage thread in sample config is enough (there is one DB connection per
-storage thread).
+storage thread in sample config is enough. See note on multiple DB threads in
+known bugs.
+
 
 ## Running scanner
 
@@ -82,4 +83,9 @@ After the scan is complete, you may create indices to speed up working/searching
   SERVFAIL (up to 10 minute timeouts were observed for single RR)
 - some records may be duplicated in DB if they are present in multiple
   responses (e.g. NSEC RRs)
+- note on multiple DB threads: there is a stupid bug that will cause occasional
+  transaction rollback with `insert_unique_domain` (it's a feeble emulation of
+  `INSERT IGNORE`).  So either pre-fill all domains into domains table before
+  the scan, or avoid using more DB threads (not really necessary even with 1000
+  scanning threads).
 
