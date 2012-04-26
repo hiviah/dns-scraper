@@ -43,8 +43,9 @@ Then create tables (in dns-scraper dir):
 
     make tables
 
-Optionally, you can set `DNS_SCRAPER_DB` and/or `DNS_SCRAPER_SCHEMA` variables to
-customize names of DB and/or schema, e.g.:
+Optionally, you can set `DNS_SCRAPER_DB`, `DNS_SCRAPER_SCHEMA`,
+`DNS_SCRAPER_USER` variables to customize names of DB, schema and username,
+e.g.:
 
     export DNS_SCRAPER_DB=scraper_db
     export DNS_SCRAPER_SCHEMA=scan_2012_04_18
@@ -71,7 +72,7 @@ invocation will run the scanner:
     ./dns_scraper.py domains dns_scraper.config
 
 After the scan is complete, you may create indices to speed up working/searching 
-(envvars `DNS_SCRAPER_DB` and/or `DNS_SCRAPER_SCHEMA` are supported like before):
+(envvars like `DNS_SCRAPER_DB` are supported as before):
 
     make indices
 
