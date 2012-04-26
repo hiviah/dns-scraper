@@ -20,11 +20,11 @@ $$
 DECLARE
 	new_index INTEGER;
 BEGIN
-    SELECT domains.id FROM domains WHERE fqdn = new_fqdn LIMIT 1 INTO new_index;
+    SELECT domains.id FROM __SCHEMAPLACEHOLDER__.domains WHERE fqdn = new_fqdn LIMIT 1 INTO new_index;
     IF new_index IS NOT NULL THEN
 	RETURN new_index;
     ELSE
-	INSERT INTO domains (fqdn) VALUES (new_fqdn) RETURNING id INTO new_index;
+	INSERT INTO __SCHEMAPLACEHOLDER__.domains (fqdn) VALUES (new_fqdn) RETURNING id INTO new_index;
 	RETURN new_index;
     END IF;
 END;

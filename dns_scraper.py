@@ -183,7 +183,7 @@ class DnsMetadata(StorageQueueClient):
 		sql = sql + """(fqdn_id, ttl, rr_type, algo, labels, orig_ttl,
 			sig_expiration, sig_inception,
 			keytag, signer, signature)
-			VALUES (insert_unique_domain(%s), %s, %s, %s, %s, %s,
+			VALUES ("""+self.prefix+"""insert_unique_domain(%s), %s, %s, %s, %s, %s,
 				to_timestamp(%s), to_timestamp(%s),
 				%s, %s, %s)
 			"""
@@ -268,7 +268,7 @@ class DnsMetadata(StorageQueueClient):
 		
 		sql = "INSERT INTO %snsec_rr " % self.prefix
 		sql = sql + """(secure, fqdn_id, rr_type, owner, ttl, rcode, next_domain, type_bitmap)
-			VALUES (%s, insert_unique_domain(%s), %s, %s, %s, %s, %s, %s)
+			VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s, %s, %s, %s, %s)
 		"""
 		
 		for rr in nsecs:
@@ -306,7 +306,7 @@ class DnsMetadata(StorageQueueClient):
 		sql = "INSERT INTO %snsec3_rr " % self.prefix
 		sql = sql + """(secure, fqdn_id, rr_type, owner, ttl, rcode, hash_algo, flags,
 			iterations, salt, next_owner, type_bitmap)
-			VALUES (%s, insert_unique_domain(%s), %s, %s, %s, %s, %s, %s,
+			VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s, %s, %s, %s, %s,
 				%s, %s, %s, %s)
 		"""
 		
@@ -435,7 +435,7 @@ class RRTypeParser(StorageQueueClient):
 			
 			sql = "INSERT INTO %s%s_rr " % (self.prefix, table)
 			sql = sql + """(secure, fqdn_id, ttl, dest)
-				VALUES (%s, insert_unique_domain(%s), %s, %s)
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s)
 					"""
 			for i in range(rrs.rr_count()):
 				try:
@@ -490,7 +490,7 @@ class AParser(RRTypeParser):
 			
 			sql = "INSERT INTO %saa_rr " % self.prefix
 			sql = sql + """(secure, fqdn_id, ttl, addr)
-				VALUES (%s, insert_unique_domain(%s), %s, %s)
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
 				try:
@@ -535,7 +535,7 @@ class NSParser(RRTypeParser):
 			
 			sql = "INSERT INTO %sns_rr " % self.prefix
 			sql = sql + """(secure, fqdn_id, ttl, nameserver)
-				VALUES (%s, insert_unique_domain(%s), %s, %s)
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
 				try:
@@ -591,7 +591,7 @@ class DNSKEYParser(RRTypeParser):
 			
 			sql = "INSERT INTO %sdnskey_rr " % self.prefix
 			sql = sql + """(secure, fqdn_id, ttl, flags, protocol, algo, rsa_exp, rsa_mod, other_key)
-					VALUES(%s, insert_unique_domain(%s), %s, %s, %s, %s, %s, %s, %s)
+					VALUES(%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s, %s, %s, %s, %s, %s)
 				"""
 			
 			for i in range(rrs.rr_count()):
@@ -673,7 +673,7 @@ class DSParser(RRTypeParser):
 			sql = "INSERT INTO %sds_rr " % self.prefix
 			sql = sql + """(secure, fqdn_id, ttl, keytag,
 					algo, digest_type, digest)
-				VALUES (%s, insert_unique_domain(%s), %s, %s,
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s,
 					%s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -722,7 +722,7 @@ class SOAParser(RRTypeParser):
 			sql = "INSERT INTO %ssoa_rr " % self.prefix
 			sql = sql + """(secure, fqdn_id, authority, ttl, zone,
 				mname, rname, serial, refresh, retry, expire, minimum)
-				VALUES (%s, insert_unique_domain(%s), %s, %s, %s,
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s, %s,
 					%s, %s, %s, %s, %s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -775,7 +775,7 @@ class SSHFPParser(RRTypeParser):
 			sql = "INSERT INTO %ssshfp_rr " %  self.prefix
 			sql = sql + """(secure, fqdn_id, ttl,
 				algo, fp_type, fingerprint)
-				VALUES (%s, insert_unique_domain(%s), %s,
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s,
 					%s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -855,7 +855,7 @@ class TXTParser(RRTypeParser):
 			
 			sql = "INSERT INTO %stxt_rr " % self.prefix
 			sql = sql + """(secure, fqdn_id, ttl, value)
-					VALUES (%s, insert_unique_domain(%s), %s, %s)"""
+					VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s)"""
 			
 			for i in range(rrs.rr_count()):
 				try:
@@ -902,7 +902,7 @@ class NSEC3PARAMParser(RRTypeParser):
 			sql = "INSERT INTO %snsec3param_rr" % self.prefix
 			sql = sql + """(secure, fqdn_id, ttl,
 				hash_algo, flags, iterations, salt)
-				VALUES (%s, insert_unique_domain(%s), %s,
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s,
 					%s, %s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
@@ -961,7 +961,7 @@ class MXParser(RRTypeParser):
 			sql = "INSERT INTO %smx_rr " % self.prefix
 			sql = sql + """(secure, fqdn_id, ttl,
 				preference, exchange)
-				VALUES (%s, insert_unique_domain(%s), %s, %s, %s)
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s, %s)
 				"""
 			for i in range(rrs.rr_count()):
 				try:
