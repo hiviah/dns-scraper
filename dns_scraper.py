@@ -1038,6 +1038,7 @@ class DnsScanThread(threading.Thread):
 				logging.exception("Error fetching NS RRs for %s", domain)
 			finally:
 				self.taskQueue.task_done()
+				logging.info("Finished scanning domain %s", domain)
 
 
 def convertLoglevel(levelString):
