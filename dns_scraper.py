@@ -34,6 +34,7 @@ from ConfigParser import SafeConfigParser
 
 import ldns
 
+from psycopg2 import IntegrityError
 from db import DbPool
 from unbound import ub_ctx, ub_version, ub_strerror, ub_ctx_config, \
 	RR_CLASS_IN, RR_TYPE_DNSKEY, RR_TYPE_A, \
@@ -819,16 +820,30 @@ class StorageThread(threading.Thread):
 		conn = self.db.connection()
 		while True:
 			sqlTuple = self.dbQueue.get()
+			lastIntegrityError = None
 			
-			try:
-				cursor = conn.cursor()
-				sql, sql_data = sqlTuple
-				cursor.execute(sql, sql_data)
-			except Exception:
-				logging.exception("Failed to execute `%s` with `%s`",
-					sql, sql_data)
-			finally:
-				conn.commit()
+			#To workaround for non-atomicity of
+			#insert_unique_domain, we'll do two attempts - if the
+			#first fails on duplicate key, second will work.
+			for attempt in range(2):
+				try:
+					cursor = conn.cursor()
+					sql, sql_data = sqlTuple
+					cursor.execute(sql, sql_data)
+					break
+				except IntegrityError:
+					logging.debug("IntegrityError: failed attempt %d to execute `%s` with `%s`",
+						attempt+1, sql, sql_data)
+					lastIntegrityError = sys.exc_info()
+				except Exception:
+					logging.exception("Failed to execute `%s` with `%s`",
+						sql, sql_data)
+					break
+				finally:
+					conn.commit()
+			else: #this will run unless 'break' is executed in the above for loop
+				logging.error("Multiple integrity failures to execute `%s` with `%s`",
+					sql, sql_data, exc_info=lastIntegrityError)
 				
 			self.dbQueue.task_done()
 

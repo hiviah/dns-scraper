@@ -83,9 +83,8 @@ After the scan is complete, you may create indices to speed up working/searching
   SERVFAIL (up to 10 minute timeouts were observed for single RR)
 - some records may be duplicated in DB if they are present in multiple
   responses (e.g. NSEC RRs)
-- note on multiple DB threads: there is a stupid bug that will cause occasional
-  transaction rollback with `insert_unique_domain` (it's a feeble emulation of
-  `INSERT IGNORE`).  So either pre-fill all domains into domains table before
-  the scan, or avoid using more DB threads (not really necessary even with 1000
-  scanning threads).
+- note on multiple DB threads: there is a possibility of race condition since
+  the `insert_unique_domain` function is not atomic. However, the code accounts
+  for this, catches the case and retries the command (just the log will contain
+  a debug message about the caught IntegrityError).
 
