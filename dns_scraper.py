@@ -1155,7 +1155,13 @@ if __name__ == '__main__':
 	
 	for line in domainFile:
 		#automatically punycode-encode any IDN domains
-		domain = line.rstrip().decode(sourceEncoding).encode("idna")
+		try:
+			domainEncoded = line.rstrip()
+			domain = domainEncoded.decode(sourceEncoding).encode("idna")
+		except ValueError: #UnicodeDecodeError etc. are subclasses of ValueError
+			logging.error("Could not decode string '%s' from encoding %s",
+				domainEncoded, sourceEncoding)
+			continue
 		taskQueue.put(domain)
 		domainCount += 1
 		
