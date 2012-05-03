@@ -132,6 +132,16 @@ def rdfConvert(rdf, fmt, conv=lambda x: x):
 	return conv(struct.unpack(fmt, getRdfData(rdf))[0])
 		
 
+def assertRdfCount(count, rr):
+	"""Check that ldns_rr has correct number of RDFs.
+	
+	@param count: how many RDFs there should be
+	@param rr: ldns_rr to check
+	@raises DnsError: if the RDF count is wrong
+	"""
+	if rr.rd_count() != count:
+		raise DnsError("Invalid RDF count in RR %s" % str(rr))
+		
 class StorageQueueClient(object):
 	"""Client for storing data passing it through queue to StorageThread."""
 	
@@ -154,6 +164,10 @@ class DnsMetadata(StorageQueueClient):
 	"""Represents DNS(SEC) metadata in answer: RRSIGs, NSEC and NSEC3 RRs.
 	These are some things we need to parse from answer packet by ldns.
 	"""
+	
+	rrsigRdfCount = 9
+	nsecRdfCount = 2
+	nsec3RdfCount = 5 # that's without bitmap, since some RRs don't have bitmap
 	
 	def __init__(self, pkt, dbQueue, prefix):
 		"""Fills self with parsed data from DNS answer.
@@ -191,6 +205,7 @@ class DnsMetadata(StorageQueueClient):
 		
 		for rr in rrsigs:
 			try:
+				assertRdfCount(self.rrsigRdfCount, rr)
 				type_covered = rdfConvert(rr.rrsig_typecovered(), "!H")
 				if type_covered != rrType:
 					continue
@@ -274,6 +289,7 @@ class DnsMetadata(StorageQueueClient):
 		
 		for rr in nsecs:
 			try:
+				assertRdfCount(self.nsecRdfCount, rr)
 				ttl = rr.ttl()
 				owner = str(rr.owner()).lower()
 				next_domain = str(rr.rdf(0))
@@ -313,6 +329,8 @@ class DnsMetadata(StorageQueueClient):
 		
 		for rr in nsec3s:
 			try:
+				if rr.rd_count() < self.nsec3RdfCount:
+					raise DnsError("Invalid RDF count for NSEC3: %s" % str(rr))
 				ttl = rr.ttl()
 				owner = str(rr.owner()).lower()
 				hash_algo = ldns.ldns_nsec3_algorithm(rr)
@@ -356,6 +374,7 @@ class RRTypeParser(StorageQueueClient):
 	
 	rrType = 0 #undefined RR type
 	rrClass = RR_CLASS_IN
+	rdfCount = -1 #bogus number of RDFs
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		"""Create instance.
@@ -395,6 +414,14 @@ class RRTypeParser(StorageQueueClient):
 			self.domain, self.__class__.__name__)
 		return None
 	
+	def _assertRdfCount(self, rr):
+		"""Check that ldns_rr has correct number of RDFs.
+		
+		@param rr: ldns_rr to check
+		@raises DnsError: if the RDF count is wrong
+		"""
+		assertRdfCount(self.rdfCount, rr)
+		
 	def fetchAndParse(self):
 		"""Fetch the RRs and return result with parsed ldns_pkt.
 		
@@ -472,6 +499,7 @@ class RRTypeParser(StorageQueueClient):
 class AParser(RRTypeParser):
 	
 	rrType = RR_TYPE_A
+	rdfCount = 1
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
@@ -496,6 +524,7 @@ class AParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					addr = str(rr.a_address())
 					ttl = rr.ttl()
 					
@@ -517,6 +546,7 @@ class AAAAParser(AParser):
 class NSParser(RRTypeParser):
 	
 	rrType = RR_TYPE_NS
+	rdfCount = 1
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
@@ -541,6 +571,7 @@ class NSParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					nameserver = str(rr.ns_nsdname()).rstrip(".")
 					ttl = rr.ttl()
 					
@@ -573,6 +604,7 @@ class DnskeyAlgo:
 class DNSKEYParser(RRTypeParser):
 
 	rrType = RR_TYPE_DNSKEY
+	rdfCount = 4
 	maxDbExp = 9223372036854775807 #maximum exponent that fits in dnskey_rr.rsa_exp field
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
@@ -598,6 +630,7 @@ class DNSKEYParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					flags = rdfConvert(rr.rdf(0), "!H")
 					proto = rdfConvert(rr.rdf(1), "B")
@@ -654,6 +687,7 @@ class DNSKEYParser(RRTypeParser):
 class DSParser(RRTypeParser):
 	
 	rrType = RR_TYPE_DS
+	rdfCount = 4
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
@@ -680,6 +714,7 @@ class DSParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					keytag = rdfConvert(rr.rdf(0), "!H")
 					algo = rdfConvert(rr.rdf(1), "B")
@@ -701,6 +736,7 @@ class DSParser(RRTypeParser):
 class SOAParser(RRTypeParser):
 	
 	rrType = RR_TYPE_SOA
+	rdfCount = 7
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
@@ -729,6 +765,7 @@ class SOAParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					zone = authority and str(rr.owner()).rstrip(".") or None
 					
@@ -756,6 +793,7 @@ class SOAParser(RRTypeParser):
 class SSHFPParser(RRTypeParser):
 	
 	rrType = RR_TYPE_SSHFP
+	rdfCount = 3
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
@@ -782,6 +820,7 @@ class SSHFPParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					
 					algo = rdfConvert(rr.rdf(0), "B")
@@ -850,6 +889,7 @@ class StorageThread(threading.Thread):
 class TXTParser(RRTypeParser):
 	
 	rrType = RR_TYPE_TXT
+	rdfCount = 1
 	dbTable = "txt_rr"
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
@@ -875,6 +915,7 @@ class TXTParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					value = str(rr.rdf(0))
 					
@@ -892,11 +933,13 @@ class TXTParser(RRTypeParser):
 class SPFParser(TXTParser):
 	
 	rrType = RR_TYPE_SPF
+	rdfCount = 1
 	dbTable = "spf_rr"
 	
 class NSEC3PARAMParser(RRTypeParser):
 	
 	rrType = RR_TYPE_NSEC3PARAMS
+	rdfCount = 4
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
@@ -923,6 +966,8 @@ class NSEC3PARAMParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
+					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					
 					hash_algo = rdfConvert(rr.rdf(0), "B")
@@ -956,6 +1001,7 @@ class NSEC3PARAMParser(RRTypeParser):
 class MXParser(RRTypeParser):
 	
 	rrType = RR_TYPE_MX
+	rdfCount = 2
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
 		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
@@ -981,6 +1027,7 @@ class MXParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					preference = rdfConvert(rr.mx_preference(), "!H")
 					exchange = str(rr.mx_exchange()).rstrip(".")
