@@ -889,7 +889,7 @@ class StorageThread(threading.Thread):
 class TXTParser(RRTypeParser):
 	
 	rrType = RR_TYPE_TXT
-	rdfCount = 1
+	rdfCount = 1 # minimal count, RFC 1035 allows multiple strings
 	dbTable = "txt_rr"
 	
 	def __init__(self, domain, resolver, opts, dbQueue, prefix):
@@ -915,9 +915,11 @@ class TXTParser(RRTypeParser):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
-					self._assertRdfCount(rr)
+					if rr.rd_count() < self.rdfCount:
+						raise DnsError("TXT RR without any data: %s" % str(rr))
 					ttl = rr.ttl()
-					value = str(rr.rdf(0))
+					records = [str(rr.rdf(rdfIdx)) for rdfIdx in range(rr.rd_count())]
+					value = " ".join(records)
 					
 					sql_data = (secure, self.domain, ttl, buffer(value))
 					self.sqlExecute(sql, sql_data)
