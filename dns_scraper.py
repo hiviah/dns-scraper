@@ -291,8 +291,8 @@ class DnsMetadata(StorageQueueClient):
 			try:
 				assertRdfCount(self.nsecRdfCount, rr)
 				ttl = rr.ttl()
-				owner = str(rr.owner()).lower()
-				next_domain = str(rr.rdf(0))
+				owner = str(rr.owner()).rstrip(".").lower()
+				next_domain = str(rr.rdf(0)).rstrip(".").lower()
 				type_bitmap = self.nsecBitmapCoveredTypes(getRdfData(rr.rdf(1)))
 				
 				sql_data = (secure, domain, result.qtype, owner, ttl, rcode,
@@ -332,12 +332,12 @@ class DnsMetadata(StorageQueueClient):
 				if rr.rd_count() < self.nsec3RdfCount:
 					raise DnsError("Invalid RDF count for NSEC3: %s" % str(rr))
 				ttl = rr.ttl()
-				owner = str(rr.owner()).lower()
+				owner = str(rr.owner()).rstrip(".").lower()
 				hash_algo = ldns.ldns_nsec3_algorithm(rr)
 				flags = ldns.ldns_nsec3_flags(rr)
 				iterations = ldns.ldns_nsec3_iterations(rr)
 				salt = getRdfData(ldns.ldns_nsec3_salt(rr))
-				next_owner = str(ldns.ldns_nsec3_next_owner(rr))
+				next_owner = str(ldns.ldns_nsec3_next_owner(rr)).rstrip(".").lower()
 				bitmapRdf = getRdfData(ldns.ldns_nsec3_bitmap(rr))
 				
 				if bitmapRdf is not None:
@@ -468,8 +468,8 @@ class RRTypeParser(StorageQueueClient):
 			for i in range(rrs.rr_count()):
 				try:
 					rr = rrs.rr(i)
-					dest = str(rr.rdf(0)).rstrip(".")
-					domain = str(rr.owner()).rstrip(".")
+					dest = str(rr.rdf(0)).rstrip(".").lower()
+					domain = str(rr.owner()).rstrip(".").lower()
 					ttl = rr.ttl()
 					
 					sql_data = (secure, domain, ttl, dest)
@@ -572,7 +572,7 @@ class NSParser(RRTypeParser):
 				try:
 					rr = rrs.rr(i)
 					self._assertRdfCount(rr)
-					nameserver = str(rr.ns_nsdname()).rstrip(".")
+					nameserver = str(rr.ns_nsdname()).rstrip(".").lower()
 					ttl = rr.ttl()
 					
 					sql_data = (secure, self.domain, ttl, nameserver)
@@ -767,10 +767,10 @@ class SOAParser(RRTypeParser):
 					rr = rrs.rr(i)
 					self._assertRdfCount(rr)
 					ttl = rr.ttl()
-					zone = authority and str(rr.owner()).rstrip(".") or None
+					zone = authority and str(rr.owner()).rstrip(".").lower() or None
 					
-					mname = str(rr.rdf(0)).rstrip(".")
-					rname = str(rr.rdf(1)).rstrip(".")
+					mname = str(rr.rdf(0)).rstrip(".").lower()
+					rname = str(rr.rdf(1)).rstrip(".").lower()
 					serial = rdfConvert(rr.rdf(2), "!I")
 					refresh = rdfConvert(rr.rdf(3), "!I")
 					retry = rdfConvert(rr.rdf(4), "!I")
@@ -1032,7 +1032,7 @@ class MXParser(RRTypeParser):
 					self._assertRdfCount(rr)
 					ttl = rr.ttl()
 					preference = rdfConvert(rr.mx_preference(), "!H")
-					exchange = str(rr.mx_exchange()).rstrip(".")
+					exchange = str(rr.mx_exchange()).rstrip(".").lower()
 					
 					sql_data = (secure, self.domain, ttl,
 						preference, exchange)
@@ -1206,7 +1206,7 @@ if __name__ == '__main__':
 		#automatically punycode-encode any IDN domains
 		try:
 			domainEncoded = line.rstrip()
-			domain = domainEncoded.decode(sourceEncoding).encode("idna")
+			domain = domainEncoded.decode(sourceEncoding).encode("idna").rstrip(".").lower()
 		except ValueError: #UnicodeDecodeError etc. are subclasses of ValueError
 			logging.error("Could not decode string '%s' from encoding %s",
 				domainEncoded, sourceEncoding)
