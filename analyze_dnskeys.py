@@ -71,7 +71,7 @@ if __name__ == '__main__':
 			rsa_mod = int(rsa_mod_hex, 16)
 			
 			if rsa_mod < b1023:
-				print "Small modulus: id %s, fqdn %s, mod 0x" % (rowId, fqdn, rsa_mod_hex)
+				print "Small modulus: id %s, fqdn %s, mod 0x%s" % (rowId, fqdn, rsa_mod_hex)
 			
 			if rsa_exp == -1: #special value for exponent that won't fit into int64_t
 				print "HUGE exponent: id %s, fqdn %s" % (rowId, fqdn)
