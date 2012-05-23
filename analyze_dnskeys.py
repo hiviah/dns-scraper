@@ -52,7 +52,7 @@ if __name__ == '__main__':
 		
 		cursor.execute(sql, sql_data)
 	
-	sql = """SELECT dnskey_rr.id AS id, fqdn, rsa_exp, encode(rsa_mod, 'hex') AS rsa_mod
+	sql = """SELECT dnskey_rr.id AS id, fqdn, rsa_exp, encode(rsa_mod, 'hex') AS rsa_mod_hex
 			FROM dnskey_rr INNER JOIN domains ON (fqdn_id=domains.id)
 			WHERE algo IN (%s)
 		""" % rsaAlgoStr
@@ -65,17 +65,18 @@ if __name__ == '__main__':
 			rowId = row["id"]
 			fqdn = row["fqdn"]
 			rsa_exp = row["rsa_exp"]
-			rsa_mod = int(row["rsa_mod"], 16)
+			rsa_mod_hex = row["rsa_mod_hex"]
+			rsa_mod = int(rsa_mod_hex, 16)
 			
 			if rsa_mod < b1023:
-				print "Small modulus: id %s, fqdn %s" % (rowId, fqdn)
+				print "Small modulus: id %s, fqdn %s, mod 0x" % (rowId, fqdn, rsa_mod_hex)
 			
 			if rsa_exp == -1: #special value for exponent that won't fit into int64_t
 				print "HUGE exponent: id %s, fqdn %s" % (rowId, fqdn)
 			elif rsa_exp < min_exponent:
-				print "Small exponent: id %s, fqdn %s" % (rowId, fqdn)
+				print "Small exponent %s: id %s, fqdn %s" % (rsa_exp, rowId, fqdn)
 			elif rsa_exp > big_exponent:
-				print "Big exponent: id %s, fqdn %s" % (rowId, fqdn)
+				print "Big exponent 0x%x: id %s, fqdn %s" % (rsa_exp, rowId, fqdn)
 			
 		rows = cursor.fetchmany(sqlRowCount)
 		
