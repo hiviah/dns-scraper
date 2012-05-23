@@ -34,8 +34,6 @@ if __name__ == '__main__':
 	scraperConfig.read(sys.argv[1])
 	
 	db = DbPool(scraperConfig, max_connections=1)
-	#named cursor in order to not swap ourselves from the known universe
-	cursor = db.cursor(name="dnskeys")
 	
 	# prefix/schema to use in DB:
 	prefix = ""
@@ -50,7 +48,11 @@ if __name__ == '__main__':
 		sql = "SET search_path = %s"
 		sql_data = (prefix[:-1],)
 		
+		cursor = db.cursor()
 		cursor.execute(sql, sql_data)
+	
+	#named cursor in order to not swap ourselves from the known universe
+	cursor = db.cursor(name="dnskeys")
 	
 	sql = """SELECT dnskey_rr.id AS id, fqdn, rsa_exp, encode(rsa_mod, 'hex') AS rsa_mod_hex
 			FROM dnskey_rr INNER JOIN domains ON (fqdn_id=domains.id)
