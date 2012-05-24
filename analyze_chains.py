@@ -106,8 +106,8 @@ if __name__ == '__main__':
 		rows = cursor.fetchmany(sqlRowCount)
 		
 	
-	for v in roots:
-		print v.maxDepth(), v.tlds(), v
+	#for v in roots:
+	#	print v.maxDepth(), v.tlds(), v
 		
 	depths = [node.maxDepth() for node in roots]
 	median = np.median(depths)
@@ -115,5 +115,11 @@ if __name__ == '__main__':
 	maxDepth = np.max(depths)
 	
 	print "CNAME chains max: %d, mean: %2.2f, median: %2.2f" % (maxDepth, mean, median)
-
-
+	
+	tldSizes = [len(node.tlds()) for node in roots]
+	median = np.median(tldSizes)
+	mean = np.mean(tldSizes)
+	maxDepth = np.max(tldSizes)
+	
+	print "CNAME TLDs chained max: %d, mean: %2.2f, median: %2.2f" % (maxDepth, mean, median)
+	
