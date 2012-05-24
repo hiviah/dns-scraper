@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import sys
+import functools
 import numpy as np
 
 from ConfigParser import SafeConfigParser
@@ -24,6 +25,15 @@ class ChainNode(object):
 		"""Simple DFS search to determine max depth - acyclic graph expected."""
 		return max([1] + [1+target.maxDepth() for target in self.targets])
 		
+	def tld(self):
+		"""Return the name of TLD for this node's name. Root is reported
+		as ".", other TLDs are without dot."""
+		return self.name.split(".")[-1] or "."
+		
+	def tlds(self):
+		"""Return all TLDs this chain goes through."""
+		return functools.reduce(set.union, [target.tlds() for target in self.targets], set([self.tld()]))
+	
 	def __eq__(self, other):
 		return self.name == other.name
 	
@@ -96,6 +106,9 @@ if __name__ == '__main__':
 		rows = cursor.fetchmany(sqlRowCount)
 		
 	
+	for v in roots:
+		print v.maxDepth(), v.tlds(), v
+		
 	depths = [node.maxDepth() for node in roots]
 	median = np.median(depths)
 	mean = np.mean(depths)
