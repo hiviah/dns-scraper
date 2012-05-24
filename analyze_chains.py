@@ -99,7 +99,8 @@ if __name__ == '__main__':
 	depths = [node.maxDepth() for node in roots]
 	median = np.median(depths)
 	mean = np.mean(depths)
+	maxDepth = np.max(depths)
 	
-	print "CNAME chains mean: %2.2f, median: %2.2f" % (mean, median)
+	print "CNAME chains max: %d, mean: %2.2f, median: %2.2f" % (maxDepth, mean, median)
 
 
