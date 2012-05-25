@@ -17,11 +17,15 @@ from db import DbSingleThreadOverSchema
 from dns_scraper import DnskeyAlgo
 
 #minimal modulus size and exponent size that is considered "safe"
+#see http://www.keylength.com/en/3/ and referenced ECRYPT II yearly report
 b1023 = 1<<1023
-min_exponent = 65537
-big_exponent = 0x100000000
 
-rsaAlgoStr = ",".join([str(algo) for algo in DnskeyAlgo.rsaAlgoIds])
+#see "Variants of Bleichenbacher's Low-Exponent Attacks on PKCS##1 RSA":
+#http://www.cdc.informatik.tu-darmstadt.de/reports/reports/sigflaw.pdf
+min_exponent = 65537
+
+#see Adam Langley's blog: http://www.imperialviolet.org/2012/03/17/rsados.html
+big_exponent = 0x100000000
 
 
 
@@ -40,10 +44,11 @@ if __name__ == '__main__':
 	
 	sql = """SELECT dnskey_rr.id AS id, fqdn, rsa_exp, encode(rsa_mod, 'hex') AS rsa_mod_hex
 			FROM dnskey_rr INNER JOIN domains ON (fqdn_id=domains.id)
-			WHERE algo IN (%s)
-		""" % rsaAlgoStr
+			WHERE algo IN %s
+		"""
 	
-	cursor.execute(sql)
+	sql_data = (tuple(DnskeyAlgo.rsaAlgoIds),)
+	cursor.execute(sql, sql_data)
 	rows = cursor.fetchmany(db.dbRows)
 	
 	while rows:
