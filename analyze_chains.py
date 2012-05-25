@@ -87,8 +87,9 @@ if __name__ == '__main__':
 	
 	while rows:
 		for row in rows:
-			fqdn = row['fqdn']
-			dest = row['dest']
+                        #do normalization just in case we get older DB
+			fqdn = row['fqdn'].lower().rstrip(".")
+			dest = row['dest'].lower().rstrip(".")
 			
 			node = name2node.get(fqdn)
 			
