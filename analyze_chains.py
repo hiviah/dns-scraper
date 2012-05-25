@@ -6,7 +6,7 @@ import numpy as np
 
 from ConfigParser import SafeConfigParser
 
-from db import DbPool
+from db import DbSingleThreadOverSchema
 
 # Script for analysis of CNAME chain lengths. May require lot of memory for
 # huge TLDs like .com, since the CNAME graph forest is created in-memory.
@@ -49,28 +49,10 @@ if __name__ == '__main__':
 		print >> sys.stderr, "ERROR: usage: <scraper_config>" 
 		sys.exit(1)
 		
-	sqlRowCount = 2000
-	
 	scraperConfig = SafeConfigParser()
 	scraperConfig.read(sys.argv[1])
 	
-	db = DbPool(scraperConfig, max_connections=1)
-	
-	# prefix/schema to use in DB:
-	prefix = ""
-	if scraperConfig.has_option("database", "prefix"):
-		prefix = scraperConfig.get("database", "prefix")
-	
-	#We are using single thread, so let's set the schema using 'set search_path'
-	if prefix:
-		if not prefix.endswith("."):
-			raise ValueError("Sorry, only schemes supported in this script")
-		
-		sql = "SET search_path = %s"
-		sql_data = (prefix[:-1],)
-		
-		cursor = db.cursor()
-		cursor.execute(sql, sql_data)
+	db = DbSingleThreadOverSchema(scraperConfig)
 	
 	#named cursor in order to not swap ourselves from the known universe
 	cursor = db.cursor(name="dnskeys")
@@ -82,12 +64,12 @@ if __name__ == '__main__':
 			INNER join domains on (fqdn_id = domains.id)"""
 	
 	cursor.execute(sql)
-	rows = cursor.fetchmany(sqlRowCount)
+	rows = cursor.fetchmany(db.dbRows)
 	roots = set() #roots of every CNAME chain/tree
 	
 	while rows:
 		for row in rows:
-                        #do normalization just in case we get older DB
+			#do normalization just in case we get older DB
 			fqdn = row['fqdn'].lower().rstrip(".")
 			dest = row['dest'].lower().rstrip(".")
 			
@@ -104,7 +86,7 @@ if __name__ == '__main__':
 			else:
 				node.targets.add(destNode)
 				
-		rows = cursor.fetchmany(sqlRowCount)
+		rows = cursor.fetchmany(db.dbRows)
 		
 	
 	#for v in roots:

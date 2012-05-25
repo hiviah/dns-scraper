@@ -10,9 +10,10 @@ Reports also keys with big exponents (which slow down verification at resolvers)
 
 import sys
 
+from math import log, ceil
 from ConfigParser import SafeConfigParser
 
-from db import DbPool
+from db import DbSingleThreadOverSchema
 from dns_scraper import DnskeyAlgo
 
 #minimal modulus size and exponent size that is considered "safe"
@@ -22,7 +23,6 @@ big_exponent = 0x100000000
 
 rsaAlgoStr = ",".join([str(algo) for algo in DnskeyAlgo.rsaAlgoIds])
 
-sqlRowCount = 2000
 
 
 if __name__ == '__main__':
@@ -33,23 +33,7 @@ if __name__ == '__main__':
 	scraperConfig = SafeConfigParser()
 	scraperConfig.read(sys.argv[1])
 	
-	db = DbPool(scraperConfig, max_connections=1)
-	
-	# prefix/schema to use in DB:
-	prefix = ""
-	if scraperConfig.has_option("database", "prefix"):
-		prefix = scraperConfig.get("database", "prefix")
-	
-	#We are using single thread, so let's set the schema using 'set search_path'
-	if prefix:
-		if not prefix.endswith("."):
-			raise ValueError("Sorry, only schemes supported in this script")
-		
-		sql = "SET search_path = %s"
-		sql_data = (prefix[:-1],)
-		
-		cursor = db.cursor()
-		cursor.execute(sql, sql_data)
+	db = DbSingleThreadOverSchema(scraperConfig)
 	
 	#named cursor in order to not swap ourselves from the known universe
 	cursor = db.cursor(name="dnskeys")
@@ -60,7 +44,7 @@ if __name__ == '__main__':
 		""" % rsaAlgoStr
 	
 	cursor.execute(sql)
-	rows = cursor.fetchmany(sqlRowCount)
+	rows = cursor.fetchmany(db.dbRows)
 	
 	while rows:
 		for row in rows:
@@ -70,8 +54,10 @@ if __name__ == '__main__':
 			rsa_mod_hex = row["rsa_mod_hex"]
 			rsa_mod = int(rsa_mod_hex, 16)
 			
+			bits_in = lambda n: ceil(log(abs(n)+1,2))
+			
 			if rsa_mod < b1023:
-				print "Small modulus: id %s, fqdn %s, mod 0x%s" % (rowId, fqdn, rsa_mod_hex)
+				print "Small modulus: id %s, fqdn %s, %d bits, mod 0x%s" % (rowId, fqdn, bits_in(rsa_mod), rsa_mod_hex)
 			
 			if rsa_exp == -1: #special value for exponent that won't fit into int64_t
 				print "HUGE exponent: id %s, fqdn %s" % (rowId, fqdn)
@@ -80,7 +66,9 @@ if __name__ == '__main__':
 			elif rsa_exp > big_exponent:
 				print "Big exponent 0x%x: id %s, fqdn %s" % (rsa_exp, rowId, fqdn)
 			
-		rows = cursor.fetchmany(sqlRowCount)
+			# TODO: check against debian weak keys here, though it's possible in SQL, too
+			
+		rows = cursor.fetchmany(db.dbRows)
 		
 		
 

@@ -102,4 +102,49 @@ class DbPool(object):
 		"""Close connection."""
 		self.connection().close()
 
-
+class DbSingleThreadOverSchema(DbPool):
+	"""Simple object mimicing the above DbPool. Should be used for data
+	analysis - only single thread is needed, so 'SET search_path = bla'
+	works.
+	
+	After initialization the caller just wants to ask for cursor() method.
+	"""
+	
+	dbRows = 2000 #DB rows to fetch at once with named cursor via fetchmany()
+	
+	def __init__(self, config):
+		"""Initialize DB for just one connection in single thread. Set
+		schema based on config.
+		
+		@param config: ConfigParser instance
+		@param cursorName: should be provided if huge data will be
+		processed at small chunks, otherwise psycopg will load complete
+		query result into memory
+		
+		@raises ValueError: if prefix from config does not end in dot,
+		i.e. it must be a name of schema (which is trailed by dot in our
+		case).
+		
+		Using this approach with 'SET search_path' is fine for single
+		thread/connection, but wouldn't work for the multithreaded
+		scanner."""
+		
+		super(DbSingleThreadOverSchema, self).__init__(config, min_connections=1, max_connections=1)
+		
+		self.prefix = ""
+		if config.has_option("database", "prefix"):
+			self.prefix = config.get("database", "prefix")
+		
+		#We are using single thread, so let's set the schema using 'set search_path'
+		if self.prefix:
+			if not self.prefix.endswith("."):
+				raise ValueError("Sorry, only schemes supported in DBSingleThreadOverSchema")
+			
+			sql = "SET search_path = %s;"
+			sql_data = (self.prefix[:-1],)
+			
+			cursor = self.cursor()
+			cursor.execute(sql, sql_data)
+			cursor.close()
+	
+	#rest of methods should be fine when inherited from parent
