@@ -19,6 +19,8 @@
 """
 The unbound-1.4.16 patch in "patches" directory is required for this to
 work. See README.md.
+
+Unbound >= 1.4.17 already has the necessary patch.
 """
 
 import time

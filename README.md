@@ -6,14 +6,11 @@ various DNSSEC stuff.
 ## Requirements
 
 * python-ldns (>= 1.6.10, latest ldns preferred)
-* python-unbound (>= 1.4.16; needs patching, see below)
+* python-unbound (>= 1.4.17; or 1.4.16 with patching, see below)
 * python-psycopg2 (known to run with 2.0.13)
 * postgresql-server (highly recommended to run on localhost: no reconnect in DB pool due to transaction use)
 
-## Patching unbound
-
-The patch needed in unbound has SVN revision r2643 which is not yet in current
-stable unbound 1.4.16.
+## Patching unbound (not needed for unbound >= 1.4.17)
 
 1. Download unbound-1.4.16.tar.gz from [unbound.net](http://unbound.net/download.html)
 2. Unpack e.g. in ~/tmp: 
@@ -29,7 +26,7 @@ stable unbound 1.4.16.
     `./configure --disable-gost --with-pthreads --with-pyunbound --with-pythonmodule --with-libevent`  
     `make`
 
-5. copy over the _unbound.so and unbound.py to dns-scraper directory:
+5. copy over the \_unbound.so and unbound.py to dns-scraper directory:
 
     `cp ~/tmp/unbound-1.4.16/.libs/_unbound.so* ~/tmp/unbound-1.4.16/libunbound/python/unbound.py /path/to/dns-scraper`
 
