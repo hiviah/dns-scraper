@@ -13,3 +13,4 @@ CREATE INDEX txt_rr_fqdn_id_idx ON txt_rr (fqdn_id);
 CREATE INDEX spf_rr_fqdn_id_idx ON spf_rr (fqdn_id);
 CREATE INDEX nsec3param_rr_fqdn_id_idx ON nsec3param_rr (fqdn_id);
 CREATE INDEX mx_rr_fqdn_id_idx ON mx_rr (fqdn_id);
+CREATE INDEX tlsa_rr_fqdn_id_idx ON tlsa_rr (fqdn_id);

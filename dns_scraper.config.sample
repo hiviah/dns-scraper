@@ -20,7 +20,8 @@ dbname = dns_scraper
 #  ub_ctx.add_ta_file() accepts
 #rrs - RR types to fetch&store. NS, DS, RRSIG, NSEC and NSEC3 are stored always.
 #  Additional RRs can be chosen from:
-#    A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT
+#    A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT, TLSA
+#  TLSA adds default prefix _443._tcp. for the RR queried
 # source_encoding - encoding of the input file, necessary if IDN are used;
 #   default utf-8
 [dns]
@@ -28,7 +29,7 @@ dbname = dns_scraper
 #forwarder = 127.0.0.1
 retries = 1
 ta_file = keys
-rrs = A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT
+rrs = A, AAAA, DNSKEY, MX, NSEC3PARAM, SOA, SPF, SSHFP, TXT, TLSA
 #source_encoding = utf-8
 
 #logfile - logging/debug stuff gets dumped here, use "-" for stderr (without quotes)

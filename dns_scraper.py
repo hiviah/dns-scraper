@@ -45,6 +45,7 @@ from unbound import ub_ctx, ub_version, ub_strerror, ub_ctx_config, \
 	RR_TYPE_NS, RR_TYPE_TXT, RR_TYPE_CNAME, RR_TYPE_DNAME, RCODE_SERVFAIL
 
 RR_TYPE_SPF = 99
+RR_TYPE_TLSA = 52
 
 class DnsError(RuntimeError):
 	"""Exception for reporting internal unbound and ldns errors"""
@@ -1048,6 +1049,63 @@ class MXParser(RRTypeParser):
 		
 		return rrCount
 
+class TLSAParser(RRTypeParser):
+	
+	rrType = RR_TYPE_TLSA
+	rdfCount = 1
+	servicePrefix = "_443._tcp." #by default scan for port 443 tcp TLSAs
+	
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		RRTypeParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
+	
+	def fetchAndStore(self):
+		# a bit dirty handling of the prefix
+		domainUnprefixed = self.domain
+		self.domain = self.servicePrefix + self.domain
+		(r, pkt) = self.fetchAndParse()
+		self.domain = domainUnprefixed
+		if not r:
+			return -1
+		
+		self.storeRedirects(r, pkt)
+		rrCount = 0
+		
+		if r.havedata:
+			secure = validationToDbEnum(r)
+			
+			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
+			
+			sql = "INSERT INTO %stlsa_rr " % self.prefix
+			sql = sql + """(secure, fqdn_id, ttl,
+				service_prefix, cert_usage, selector, matching_type, association)
+				VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s, %s, %s, %s, %s)
+				"""
+			for i in range(rrs.rr_count()):
+				try:
+					rr = rrs.rr(i)
+					self._assertRdfCount(rr)
+					ttl = rr.ttl()
+					unparsedRr = getRdfData(rr.rdf(0))
+					if len(unparsedRr) < 4:
+						raise ValueError("TLSA record for %s.%s too short" % (self.servicePrefix, self.domain))
+					
+					cert_usage = ord(unparsedRr[0])
+					selector = ord(unparsedRr[1])
+					matching_type = ord(unparsedRr[2])
+					association = buffer(unparsedRr[3:])
+					
+					sql_data = (secure, self.domain, ttl,
+						self.servicePrefix, cert_usage, selector, matching_type, association)
+					self.sqlExecute(sql, sql_data)
+				except:
+					logging.exception("Failed to parse %s for domain %s: %s" % ("TLSA", self.domain, rr))
+				
+			rrCount = rrs.rr_count()
+		
+		self.storeDnssecData(pkt, r)
+		
+		return rrCount
+
 
 
 class DnsScanThread(threading.Thread):
@@ -1134,6 +1192,7 @@ class ParserParser(object):
 		"SPF": 		SPFParser,
 		"SSHFP": 	SSHFPParser,
 		"TXT": 		TXTParser,
+		"TLSA": 	TLSAParser,
 	}
 	
 	def __init__(self, configLine):

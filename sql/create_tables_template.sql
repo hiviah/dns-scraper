@@ -216,6 +216,19 @@ CREATE TABLE dname_rr (
     dest VARCHAR(255) NOT NULL
 );
 
+-- Table for DNAME records
+CREATE TABLE tlsa_rr (
+    id SERIAL PRIMARY KEY,
+    secure validation_result,
+    fqdn_id INTEGER REFERENCES domains(id),
+    ttl INTEGER NOT NULL,
+    service_prefix VARCHAR(255) NOT NULL,
+    cert_usage SMALLINT NOT NULL,
+    selector SMALLINT NOT NULL,
+    matching_type SMALLINT NOT NULL,
+    association BYTEA NOT NULL
+);
+
 -- due to fastflux DNS, CNAME/DNAME destination can change
 CREATE UNIQUE INDEX cname_rr_fqdn_id_dest_idx ON cname_rr(fqdn_id, dest);
 CREATE UNIQUE INDEX dname_rr_fqdn_id_dest_idx ON dname_rr(fqdn_id, dest);
