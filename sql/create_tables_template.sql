@@ -43,7 +43,7 @@ $$ LANGUAGE plpgsql;
 -- Table for RRSIGs
 CREATE TABLE rrsig_rr (
     id SERIAL PRIMARY KEY,
-    fqdn_id INTEGER REFERENCES domains(id),
+    fqdn_id INTEGER REFERENCES domains(id) ON DELETE CASCADE ON UPDATE CASCADE,
     ttl INTEGER NOT NULL,
     rr_type INTEGER NOT NULL,
     algo SMALLINT NOT NULL,
