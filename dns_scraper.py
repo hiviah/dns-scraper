@@ -911,7 +911,7 @@ class TXTParser(RRTypeParser):
 			
 			rrs = pkt.rr_list_by_type(self.rrType, ldns.LDNS_SECTION_ANSWER)
 			
-			sql = "INSERT INTO %stxt_rr " % self.prefix
+			sql = "INSERT INTO %s%s " % (self.prefix, self.dbTable)
 			sql = sql + """(secure, fqdn_id, ttl, value)
 					VALUES (%s, """+self.prefix+"""insert_unique_domain(%s), %s, %s)"""
 			
@@ -940,6 +940,10 @@ class SPFParser(TXTParser):
 	rrType = RR_TYPE_SPF
 	rdfCount = 1
 	dbTable = "spf_rr"
+
+	def __init__(self, domain, resolver, opts, dbQueue, prefix):
+		TXTParser.__init__(self, domain, resolver, opts, dbQueue, prefix)
+	
 	
 class NSEC3PARAMParser(RRTypeParser):
 	
